@@ -1,3 +1,9 @@
+<?php
+/* Les prix, durees et formules viennent tous de tarifs.php. */
+require __DIR__ . '/espace/prix.php';
+$tarifs = tarifs();
+$remise = remise_lancement();
+?>
 <!doctype html>
 <html lang="fr-BE">
 <head>
@@ -7,8 +13,9 @@
 <!-- ==========================================================================
      A REMPLIR AVANT LA MISE EN LIGNE
      --------------------------------------------------------------------------
-     Ouvre index.html ET contact.php dans Notepad++, fais Ctrl+H (Remplacer),
-     coche "Dans tous les documents ouverts", et remplace ces marqueurs un par un :
+     Ouvre index.php, contact.php ET tarifs.php dans Notepad++, fais Ctrl+H
+     (Remplacer), coche "Dans tous les documents ouverts", et remplace ces
+     marqueurs un par un :
 
        {{NOM_COMPLET}}   prenom + nom        ex. Celyan Dupont
        {{TELEPHONE}}     format lisible      ex. +32 493 12 34 56
@@ -132,7 +139,7 @@
 <header class="entete">
   <div class="enveloppe entete__interieur">
 
-    <a href="index.html" class="marque" aria-label="Shynera, retour à l'accueil" data-accueil>
+    <a href="/" class="marque" aria-label="Shynera, retour à l'accueil" data-accueil>
       <span class="marque__mot">Shynera</span>
       <span class="marque__trait" aria-hidden="true"></span>
     </a>
@@ -170,11 +177,11 @@
   <div class="enveloppe hero__grille">
 
     <div class="hero__texte">
-      <!-- Bandeau de l'offre de lancement : il disparait tout seul quand
-           l'offre est arretee (voir la section Tarifs). -->
-      <a href="#tarifs" class="hero__offre" data-lancement>
-        Offre de lancement&nbsp;: <strong>−<span data-remise-texte>25</span>&nbsp;%</strong> pour mes 20 premiers clients
+      <?php if ($remise > 0): ?>
+      <a href="#tarifs" class="hero__offre">
+        Offre de lancement&nbsp;: <strong>−<?= $remise ?>&nbsp;%</strong> pour mes 20 premiers clients
       </a>
+      <?php endif; ?>
       <h1>Nettoyage de voiture à domicile à Liège</h1>
       <p class="hero__accroche">
         Je viens chez vous, avec mon matériel. Vous ne déplacez pas votre voiture,
@@ -393,25 +400,9 @@
 </section>
 
 <!-- ==========================================================================
-     3. TARIFS — les 4 offres
-     Garde des prix affiches. Un visiteur qui ne trouve pas de prix s'en va.
-
-     CHANGER LES PRIX :
-     - Prix de base (citadine) : le chiffre dans data-prix="..." ET celui
-       juste apres, par exemple <span data-prix="70">70</span>.
-     - Supplements par type de vehicule : data-supplement="..." dans le
-       selecteur ci-dessous. Ils s'appliquent aussi aux abonnements.
-     Le script recalcule tout seul les prix quand le visiteur change de vehicule.
-
-     EXTERIEUR : une carte marquee data-exterieur touche a la carrosserie.
-     La fenetre de reservation demande alors aussi un acces a l'eau.
-     Sans data-exterieur, seule l'electricite est demandee.
-
-     OFFRE DE LANCEMENT :
-     - Le pourcentage est dans data-remise-lancement="25" juste en dessous.
-       Le script calcule les prix reduits et remplit le "25" partout.
-     - Pour ARRETER l'offre : mets data-remise-lancement="0". Les prix barres,
-       l'encart et le bandeau du haut de page disparaissent tout seuls.
+     3. TARIFS — les offres a l'unite
+     Tout vient de tarifs.php : prix, durees, contenu des formules, offre de
+     lancement. Ne modifie pas les prix ici, modifie tarifs.php.
      ========================================================================== -->
 <section class="section" id="tarifs">
   <div class="enveloppe">
@@ -423,8 +414,9 @@
       et le prix affiché est celui que vous payez.
     </p>
 
-    <div class="lancement" data-lancement data-remise-lancement="25">
-      <p class="lancement__pourcentage">−<span data-remise-texte>25</span>&nbsp;%</p>
+    <?php if ($remise > 0): ?>
+    <div class="lancement">
+      <p class="lancement__pourcentage">−<?= $remise ?>&nbsp;%</p>
       <div>
         <p class="lancement__titre">Offre de lancement</p>
         <p class="lancement__offre">
@@ -436,106 +428,59 @@
         </p>
       </div>
     </div>
+    <?php endif; ?>
 
     <fieldset class="gabarit" data-gabarit>
       <legend>Votre véhicule</legend>
       <div class="gabarit__choix">
-        <label><input type="radio" name="gabarit" value="citadine" data-supplement="0" checked><span>Citadine<small>Clio, 208, Polo…</small></span></label>
-        <label><input type="radio" name="gabarit" value="berline" data-supplement="10"><span>Berline ou break<small>Golf, Octavia, Passat…</small></span></label>
-        <label><input type="radio" name="gabarit" value="suv" data-supplement="15"><span>SUV ou monospace<small>Tiguan, 3008, Scénic…</small></span></label>
-        <label><input type="radio" name="gabarit" value="utilitaire" data-supplement="25"><span>Utilitaire ou 7 places<small>Berlingo, Kangoo, Touran…</small></span></label>
+        <?php $premier = true; foreach ($tarifs['vehicules'] as $code => $v): ?>
+        <label><input type="radio" name="gabarit" value="<?= $code ?>"<?= $premier ? ' checked' : '' ?>><span><?= $v['nom'] ?><small><?= $v['exemples'] ?></small></span></label>
+        <?php $premier = false; endforeach; ?>
       </div>
     </fieldset>
     <p class="cache" aria-live="polite" data-gabarit-annonce></p>
 
     <div class="formules formules--4">
+      <?php foreach ($tarifs['prestations'] as $code => $p): ?>
+      <article class="formule<?= $p['vedette'] ? ' formule--vedette' : '' ?><?= $p['disponible'] ? '' : ' formule--bientot' ?>" data-offre="<?= $code ?>">
+        <?php if ($p['marque']): ?><p class="formule__marque"><?= $p['marque'] ?></p><?php endif; ?>
+        <h3><?= $p['titre'] ?></h3>
 
-      <article class="formule" data-offre="interieur">
-        <h3>Intérieur essentiel</h3>
-        <p class="formule__prix">
-          <span data-prix="70" data-remise>52</span> €
-          <del class="formule__barre" data-lancement><span class="cache">au lieu de </span><span data-prix="70">70</span> €</del>
-          <em>· 1 h 30</em>
-        </p>
-        <p class="formule__resume">L'entretien régulier, pour une voiture qui sert tous les jours.</p>
+        <?php if ($p['disponible']): ?>
+          <?php $normal = prix_prestation($code, 'citadine'); $reduit = prix_avec_remise($normal); ?>
+          <p class="formule__prix">
+            <span data-prix-prestation="<?= $code ?>"><?= $reduit ?></span> €
+            <?php if ($reduit !== $normal): ?>
+              <del class="formule__barre"><span class="cache">au lieu de </span><span data-prix-normal="<?= $code ?>"><?= $normal ?></span> €</del>
+            <?php endif; ?>
+            <em>· <?= $p['duree_texte'] ?></em>
+          </p>
+        <?php else: ?>
+          <p class="formule__prix formule__prix--bientot"><?= $p['texte_prix'] ?? 'Bientôt disponible' ?></p>
+        <?php endif; ?>
+
+        <p class="formule__resume"><?= $p['resume'] ?></p>
         <ul class="formule__inclus">
-          <li>Aspiration complète&nbsp;: sièges, moquettes, coffre, rails</li>
-          <li>Nettoyage des plastiques et du tableau de bord</li>
-          <li>Vitres intérieures sans traces</li>
-          <li>Seuils de portes et joints</li>
-          <li>Poubelle vidée, tapis brossés</li>
+          <?php foreach ($p['inclus'] as $ligne): ?><li><?= $ligne ?></li><?php endforeach; ?>
         </ul>
-        <a href="{{LIEN_RESERVATION}}" class="bouton bouton--creux formule__action" data-reserver data-prestation="interieur">Réserver</a>
-      </article>
 
-      <article class="formule formule--vedette" data-offre="interieur-exterieur" data-exterieur>
-        <p class="formule__marque">La plus demandée</p>
-        <h3>Intérieur + extérieur</h3>
-        <p class="formule__prix">
-          <span data-prix="95" data-remise>71</span> €
-          <del class="formule__barre" data-lancement><span class="cache">au lieu de </span><span data-prix="95">95</span> €</del>
-          <em>· 2 h 30</em>
-        </p>
-        <p class="formule__resume">La formule complète, intérieur et carrosserie en une seule visite.</p>
-        <ul class="formule__inclus">
-          <li>Tout l'intérieur essentiel</li>
-          <li>Prélavage et lavage à la main, méthode deux seaux</li>
-          <li>Jantes, passages de roues et bas de caisse</li>
-          <li>Séchage en microfibre, sans traces de calcaire</li>
-          <li>Brillance pneus et plastiques extérieurs</li>
-        </ul>
-        <a href="{{LIEN_RESERVATION}}" class="bouton formule__action" data-reserver data-prestation="interieur-exterieur">Réserver</a>
+        <?php if ($p['disponible']): ?>
+          <a href="{{LIEN_RESERVATION}}" class="bouton <?= $p['vedette'] ? '' : 'bouton--creux ' ?>formule__action" data-reserver data-prestation="<?= $code ?>">Réserver</a>
+        <?php else: ?>
+          <a href="<?= $p['lien'] ?? '#contact' ?>" class="bouton bouton--creux formule__action"><?= $p['bouton'] ?? 'Être prévenu' ?></a>
+        <?php endif; ?>
       </article>
-
-      <article class="formule" data-offre="renovation-interieure">
-        <h3>Remise à neuf intérieure</h3>
-        <p class="formule__prix">
-          <span data-prix="180" data-remise>135</span> €
-          <del class="formule__barre" data-lancement><span class="cache">au lieu de </span><span data-prix="180">180</span> €</del>
-          <em>· 4 h</em>
-        </p>
-        <p class="formule__resume">Pour une voiture à revendre, une fin de leasing, ou un intérieur qu'on n'ose plus montrer.</p>
-        <ul class="formule__inclus">
-          <li>Tout l'intérieur essentiel</li>
-          <li>Shampoing des sièges par injection-extraction</li>
-          <li>Shampoing des moquettes et du coffre</li>
-          <li>Nettoyage du ciel de toit</li>
-          <li>Traitement nourrissant des plastiques</li>
-          <li>Traitement des odeurs à la source</li>
-        </ul>
-        <a href="{{LIEN_RESERVATION}}" class="bouton bouton--creux formule__action" data-reserver data-prestation="renovation-interieure">Réserver</a>
-      </article>
-
-      <!-- A VENIR : quand tu as le materiel, retire la classe formule--bientot,
-           remplace "Bientot disponible" par un prix comme sur les autres
-           cartes, et remets un bouton Reserver. -->
-      <article class="formule formule--bientot" data-offre="renovation-complete" data-exterieur>
-        <p class="formule__marque">À venir</p>
-        <h3>Remise à neuf complète</h3>
-        <p class="formule__prix formule__prix--bientot">Bientôt disponible</p>
-        <p class="formule__resume">L'intérieur remis à neuf, et une carrosserie qui retrouve son éclat.</p>
-        <ul class="formule__inclus">
-          <li>Toute la remise à neuf intérieure</li>
-          <li>Décontamination de la carrosserie</li>
-          <li>Polissage des micro-rayures</li>
-          <li>Protection longue durée de la peinture</li>
-        </ul>
-        <a href="mailto:{{EMAIL}}?subject=Pr%C3%A9venez-moi%20du%20lancement%20de%20la%20remise%20%C3%A0%20neuf%20compl%C3%A8te" class="bouton bouton--creux formule__action">Être prévenu du lancement</a>
-      </article>
-
+      <?php endforeach; ?>
     </div>
 
-    <p class="formules__note">
-      Poils d'animaux +15 €. Véhicule très encrassé +20 €. Shampoing des sièges seul&nbsp;: 80 €.
-      Ces suppléments éventuels vous sont toujours annoncés avant de venir, jamais au moment de payer.
-    </p>
+    <p class="formules__note"><?= $tarifs['note'] ?></p>
   </div>
 </section>
 
 <!-- ==========================================================================
-     4. LES 3 ABONNEMENTS
-     A VALIDER : prix, frequences et conditions sont une proposition de
-     depart, calculee sur tes prix a l'unite. Ajuste-les a ta guise.
+     4. ABONNEMENTS
+     Eux aussi viennent de tarifs.php. Ils ne beneficient pas de l'offre de
+     lancement, mais suivent le supplement du vehicule choisi.
      Les boutons ouvrent WhatsApp avec un message deja redige, parce qu'un
      abonnement demande de fixer un creneau ensemble.
      ========================================================================== -->
@@ -550,56 +495,23 @@
     </p>
 
     <!-- Le script place ici une copie du selecteur "Votre vehicule" de la
-         section Tarifs : les deux restent synchronises. Rien a modifier ici.
-         L'offre de lancement ne s'applique pas aux abonnements. -->
+         section Tarifs : les deux restent synchronises. Rien a modifier ici. -->
     <div data-gabarit-copie></div>
 
     <div class="formules">
-
-      <article class="formule">
-        <h3>Intérieur mensuel</h3>
-        <p class="formule__prix"><span data-prix="60">60</span> € <em>/ mois</em></p>
-        <p class="formule__economie">Au lieu de <span data-prix="70">70</span> € à l'unité</p>
-        <p class="formule__resume">Un habitacle net toute l'année, pour la voiture du quotidien.</p>
+      <?php foreach ($tarifs['abonnements'] as $rang => $a): ?>
+      <article class="formule<?= $a['vedette'] ? ' formule--vedette' : '' ?>">
+        <?php if ($a['marque']): ?><p class="formule__marque"><?= $a['marque'] ?></p><?php endif; ?>
+        <h3><?= $a['titre'] ?></h3>
+        <p class="formule__prix"><span data-prix-abonnement="<?= $rang ?>"><?= $a['prix'] ?></span> € <em>/ mois</em></p>
+        <p class="formule__economie">Au lieu de <span data-prix-reference="<?= $rang ?>"><?= $a['reference'] ?></span> € à l'unité</p>
+        <p class="formule__resume"><?= $a['resume'] ?></p>
         <ul class="formule__inclus">
-          <li>Un intérieur essentiel chaque mois</li>
-          <li>Le même créneau réservé pour vous</li>
-          <li>Rappel par message la veille</li>
-          <li>Priorité sur le planning</li>
+          <?php foreach ($a['inclus'] as $ligne): ?><li><?= $ligne ?></li><?php endforeach; ?>
         </ul>
-        <a href="https://wa.me/{{TEL_BRUT}}?text=Bonjour%2C%20je%20suis%20int%C3%A9ress%C3%A9%20par%20l%27abonnement%20Int%C3%A9rieur%20mensuel." class="bouton bouton--creux formule__action" rel="noopener">Choisir cet abonnement</a>
+        <a href="https://wa.me/{{TEL_BRUT}}?text=<?= rawurlencode("Bonjour, je suis intéressé par l'abonnement " . $a['titre'] . '.') ?>" class="bouton <?= $a['vedette'] ? '' : 'bouton--creux ' ?>formule__action" rel="noopener">Choisir cet abonnement</a>
       </article>
-
-      <article class="formule formule--vedette">
-        <p class="formule__marque">Le meilleur rapport</p>
-        <h3>Complet mensuel</h3>
-        <p class="formule__prix"><span data-prix="85">85</span> € <em>/ mois</em></p>
-        <p class="formule__economie">Au lieu de <span data-prix="95">95</span> € à l'unité</p>
-        <p class="formule__resume">Intérieur et carrosserie une fois par mois, en une seule visite.</p>
-        <ul class="formule__inclus">
-          <li>Un intérieur + extérieur chaque mois</li>
-          <li>Le même créneau réservé pour vous</li>
-          <li>Rappel par message la veille</li>
-          <li>Priorité sur le planning</li>
-        </ul>
-        <a href="https://wa.me/{{TEL_BRUT}}?text=Bonjour%2C%20je%20suis%20int%C3%A9ress%C3%A9%20par%20l%27abonnement%20Complet%20mensuel." class="bouton formule__action" rel="noopener">Choisir cet abonnement</a>
-      </article>
-
-      <article class="formule">
-        <h3>Complet deux fois par mois</h3>
-        <!-- data-passages="2" : deux passages par mois, donc deux fois le supplement. -->
-        <p class="formule__prix"><span data-prix="160" data-passages="2">160</span> € <em>/ mois</em></p>
-        <p class="formule__economie">Au lieu de <span data-prix="190" data-passages="2">190</span> € à l'unité</p>
-        <p class="formule__resume">Pour une voiture qui doit toujours faire bonne impression.</p>
-        <ul class="formule__inclus">
-          <li>Deux intérieur + extérieur par mois</li>
-          <li>Un passage toutes les deux semaines</li>
-          <li>Rappel par message la veille</li>
-          <li>Priorité sur le planning</li>
-        </ul>
-        <a href="https://wa.me/{{TEL_BRUT}}?text=Bonjour%2C%20je%20suis%20int%C3%A9ress%C3%A9%20par%20l%27abonnement%20Complet%20deux%20fois%20par%20mois." class="bouton bouton--creux formule__action" rel="noopener">Choisir cet abonnement</a>
-      </article>
-
+      <?php endforeach; ?>
     </div>
 
     <p class="formules__note">
@@ -924,7 +836,7 @@
 
       <section class="etape" data-etape="prestation" hidden>
         <h2 class="etape__titre" tabindex="-1">Quelle prestation&nbsp;?</h2>
-        <p class="etape__aide" data-lancement>Offre de lancement&nbsp;: −<span data-remise-texte>25</span>&nbsp;% déjà déduits.</p>
+        <?php if ($remise > 0): ?><p class="etape__aide">Offre de lancement&nbsp;: −<?= $remise ?>&nbsp;% déjà déduits.</p><?php endif; ?>
         <div class="choix-liste" data-liste-prestations></div>
       </section>
 
@@ -932,25 +844,19 @@
         <h2 class="etape__titre" tabindex="-1">Des suppléments&nbsp;?</h2>
         <p class="etape__aide">
           Cochez ce qui correspond à votre véhicule, ou continuez simplement.
-          <span data-lancement>L'offre de lancement s'applique aussi aux suppléments.</span>
+          <?php if ($remise > 0): ?>L'offre de lancement s'applique aussi aux suppléments.<?php endif; ?>
         </p>
         <div class="choix-liste">
+          <?php foreach ($tarifs['supplements'] as $s): ?>
           <label class="choix">
-            <input type="checkbox" name="supplements" value="Poils d'animaux" data-montant="15">
+            <input type="checkbox" name="supplements" value="<?= $s['code'] ?>" data-montant="<?= (int) $s['montant'] ?>">
             <span class="choix__contenu">
-              <strong>Poils d'animaux</strong>
-              <small>Poils incrustés dans les sièges, la moquette ou le coffre</small>
-              <span class="choix__prix">+15 €</span>
+              <strong><?= $s['nom'] ?></strong>
+              <small><?= $s['detail'] ?></small>
+              <span class="choix__prix">+<?= (int) $s['montant'] ?> €</span>
             </span>
           </label>
-          <label class="choix">
-            <input type="checkbox" name="supplements" value="Véhicule très encrassé" data-montant="20">
-            <span class="choix__contenu">
-              <strong>Véhicule très encrassé</strong>
-              <small>Boue, sable, taches importantes ou déchets</small>
-              <span class="choix__prix">+20 €</span>
-            </span>
-          </label>
+          <?php endforeach; ?>
         </div>
       </section>
 
@@ -1001,6 +907,8 @@
   </form>
 </dialog>
 
+<!-- Les tarifs, passes au script pour la fenetre de reservation. -->
+<script>window.SHYNERA = <?= json_encode(tarifs_pour_navigateur(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;</script>
 <script src="script.js"></script>
 
 </body>

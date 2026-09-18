@@ -21,7 +21,7 @@ var logo = document.querySelector('[data-accueil]');
 if (logo) {
   logo.addEventListener('click', function (evenement) {
     var page = location.pathname.split('/').pop();
-    if (page !== '' && page !== 'index.html') return;
+    if (page !== '' && page !== 'index.php') return;
     evenement.preventDefault();
     if (menuBascule) menuBascule.checked = false;
     history.replaceState(null, '', location.pathname);
@@ -146,30 +146,49 @@ document.querySelectorAll('[data-comparateur]').forEach(function (bloc) {
 });
 
 /* 5. Prix selon le type de vehicule, et offre de lancement.
-      Les prix de base sont dans les attributs data-prix du HTML, les
-      supplements dans data-supplement du selecteur de la section Tarifs,
-      le pourcentage de l'offre dans data-remise-lancement.
+      Tout vient de tarifs.php : le serveur l'envoie dans window.SHYNERA.
       Rien a modifier ici quand tu changes un tarif. */
-var encartLancement = document.querySelector('[data-remise-lancement]');
-var remise = encartLancement ? Number(encartLancement.getAttribute('data-remise-lancement')) || 0 : 0;
+var TARIFS = window.SHYNERA || { remise: 0, vehicules: [], prestations: [], supplements: [] };
+var remise = Number(TARIFS.remise) || 0;
 
-if (remise > 0) {
-  document.querySelectorAll('[data-remise-texte]').forEach(function (texte) { texte.textContent = remise; });
-} else {
-  /* Offre arretee : on cache l'encart, le bandeau et les prix barres. */
-  document.querySelectorAll('[data-lancement]').forEach(function (element) { element.hidden = true; });
+function prestationParCode(code) {
+  for (var i = 0; i < TARIFS.prestations.length; i++) {
+    if (TARIFS.prestations[i].code === code) return TARIFS.prestations[i];
+  }
+  return null;
 }
 
-/* Prix = (prix de base + supplement x nombre de passages), puis la reduction
-   de lancement sur les prix marques data-remise, arrondie a l'euro inferieur. */
+function vehiculeParCode(code) {
+  for (var i = 0; i < TARIFS.vehicules.length; i++) {
+    if (TARIFS.vehicules[i].code === code) return TARIFS.vehicules[i];
+  }
+  return null;
+}
+
+function avecRemise(montant) {
+  return remise > 0 ? Math.floor(montant * (100 - remise) / 100) : montant;
+}
+
+/* Met a jour les prix affiches sur les cartes quand on change de vehicule. */
 function calculerPrix(supplement) {
-  document.querySelectorAll('[data-prix]').forEach(function (prix) {
-    var passages = Number(prix.getAttribute('data-passages')) || 1;
-    var montant  = Number(prix.getAttribute('data-prix')) + supplement * passages;
-    if (remise > 0 && prix.hasAttribute('data-remise')) {
-      montant = Math.floor(montant * (100 - remise) / 100);
-    }
-    prix.textContent = montant;
+  document.querySelectorAll('[data-prix-prestation]').forEach(function (element) {
+    var p = prestationParCode(element.getAttribute('data-prix-prestation'));
+    if (p) element.textContent = avecRemise(p.prix + supplement);
+  });
+  document.querySelectorAll('[data-prix-normal]').forEach(function (element) {
+    var p = prestationParCode(element.getAttribute('data-prix-normal'));
+    if (p) element.textContent = p.prix + supplement;
+  });
+  /* Abonnements : pas d'offre de lancement, mais le supplement compte
+     pour chaque passage du mois. */
+  var abonnements = TARIFS.abonnements || [];
+  document.querySelectorAll('[data-prix-abonnement]').forEach(function (element) {
+    var a = abonnements[Number(element.getAttribute('data-prix-abonnement'))];
+    if (a) element.textContent = a.prix + supplement * a.passages;
+  });
+  document.querySelectorAll('[data-prix-reference]').forEach(function (element) {
+    var a = abonnements[Number(element.getAttribute('data-prix-reference'))];
+    if (a) element.textContent = a.reference + supplement * a.passages;
   });
 }
 
@@ -188,8 +207,9 @@ if (selecteur) {
 
   function appliquer(valeur, annoncer) {
     var choix = selecteur.querySelector('input[value="' + valeur + '"]');
-    if (!choix) return;
-    var supplement = Number(choix.getAttribute('data-supplement')) || 0;
+    var v = vehiculeParCode(valeur);
+    if (!choix || !v) return;
+    var supplement = v.supplement;
 
     /* Tous les selecteurs affichent le meme choix. */
     document.querySelectorAll('[data-gabarit] input[value="' + valeur + '"]').forEach(function (champ) {
@@ -324,43 +344,31 @@ if (formulaire) {
     return { input: input, prix: prix, label: label };
   }
 
-  /* Vehicules, copies du selecteur de la section Tarifs. */
-  var listeVehicules = fenetre.querySelector('[data-liste-vehicules]');
+  /* Vehicules et prestations : tout vient de tarifs.php (window.SHYNERA). */
+  var listeVehicules  = fenetre.querySelector('[data-liste-vehicules]');
   var selecteurTarifs = document.querySelector('#tarifs [data-gabarit]');
-  if (selecteurTarifs) {
-    selecteurTarifs.querySelectorAll('input').forEach(function (radio) {
-      var etiquette  = radio.nextElementSibling;
-      var exemples   = etiquette.querySelector('small');
-      var supplement = Number(radio.getAttribute('data-supplement')) || 0;
-      var choix = creerChoix('radio', 'vehicule', radio.value,
-        etiquette.firstChild.textContent.trim(), exemples ? exemples.textContent : '');
-      /* Pas de "+10 €" ici : le supplement est deja compris dans les prix
-         affiches a l'etape suivante. */
-      choix.input.setAttribute('data-supplement', supplement);
-      listeVehicules.appendChild(choix.label);
-    });
-  }
 
-  /* Prestations, copiees des cartes de la section Tarifs. */
+  TARIFS.vehicules.forEach(function (v) {
+    /* Pas de "+10 €" ici : le supplement est deja compris dans les prix
+       affiches a l'etape suivante. */
+    listeVehicules.appendChild(creerChoix('radio', 'vehicule', v.code, v.nom, v.exemples).label);
+  });
+
   var prestations = {};
   var listePrestations = fenetre.querySelector('[data-liste-prestations]');
-  document.querySelectorAll('#tarifs [data-offre]').forEach(function (carte) {
-    var id       = carte.getAttribute('data-offre');
-    var prixBase = carte.querySelector('[data-prix][data-remise]') || carte.querySelector('[data-prix]');
-    var duree    = carte.querySelector('.formule__prix em');
-    var dispo    = !!prixBase && !carte.classList.contains('formule--bientot');
-    var p = {
-      titre:     carte.querySelector('h3').textContent.trim(),
-      base:      prixBase ? Number(prixBase.getAttribute('data-prix')) : 0,
-      remise:    !!prixBase && prixBase.hasAttribute('data-remise'),
-      duree:     duree ? duree.textContent.replace(/^[·\s]+/, '') : '',
-      exterieur: carte.hasAttribute('data-exterieur'),
-      dispo:     dispo
+  TARIFS.prestations.forEach(function (p) {
+    var choix = creerChoix('radio', 'prestation', p.code, p.titre,
+      p.disponible ? p.dureeTexte : 'Bientôt disponible');
+    choix.input.disabled = !p.disponible;
+    prestations[p.code] = {
+      titre:     p.titre,
+      base:      p.prix,
+      duree:     p.dureeTexte,
+      minutes:   p.duree,
+      exterieur: p.exterieur,
+      dispo:     p.disponible,
+      prix:      choix.prix
     };
-    var choix = creerChoix('radio', 'prestation', id, p.titre, dispo ? p.duree : 'Bientôt disponible');
-    choix.input.disabled = !dispo;
-    p.prix = choix.prix;
-    prestations[id] = p;
     listePrestations.appendChild(choix.label);
   });
 
@@ -368,15 +376,14 @@ if (formulaire) {
 
   function supplementVehicule() {
     var v = coche('vehicule');
-    return v ? Number(v.getAttribute('data-supplement')) || 0 : 0;
+    var trouve = v ? vehiculeParCode(v.value) : null;
+    return trouve ? trouve.supplement : 0;
   }
 
   /* Meme calcul que sur les cartes : base + vehicule, puis offre de lancement. */
   function prixPrestation(id) {
-    var p = prestations[id];
-    var normal = p.base + supplementVehicule();
-    var reduit = (remise > 0 && p.remise) ? Math.floor(normal * (100 - remise) / 100) : normal;
-    return { normal: normal, reduit: reduit };
+    var normal = prestations[id].base + supplementVehicule();
+    return { normal: normal, reduit: avecRemise(normal) };
   }
 
   function ecrirePrix(element, prix) {
@@ -408,7 +415,7 @@ if (formulaire) {
       return somme + (Number(c.getAttribute('data-montant')) || 0);
     }, 0);
     var brut = prestation + supplements;
-    var net  = (remise > 0 && prestations[p.value].remise) ? Math.floor(brut * (100 - remise) / 100) : brut;
+    var net  = avecRemise(brut);
     return { prestation: prestation, reduction: brut - net, net: net };
   }
 
@@ -499,7 +506,8 @@ if (formulaire) {
     var supplements = supplementsCoches();
     if (supplements.length) {
       supplements.forEach(function (c) {
-        ligneRecap('Supplément', c.value, '+' + euros(Number(c.getAttribute('data-montant')) || 0));
+        var nom = c.closest('label').querySelector('strong').textContent;
+        ligneRecap('Supplément', nom, '+' + euros(Number(c.getAttribute('data-montant')) || 0));
       });
     } else {
       ligneRecap('Suppléments', 'Aucun', '');

@@ -6,7 +6,7 @@
    e-mail. Fonctionne uniquement une fois le site en ligne chez Hostinger.
 
    A REMPLIR : remplace {{EMAIL}} ci-dessous par ton adresse, la meme que
-   dans index.html. Elle doit etre une adresse de ton domaine (par exemple
+   dans index.php. Elle doit etre une adresse de ton domaine (par exemple
    contact@shynera.be) creee dans hPanel, sinon les e-mails risquent de
    finir en spam ou d'etre refuses.
    ========================================================================== */
@@ -23,7 +23,7 @@ function repondre($reussi)
         http_response_code($reussi ? 200 : 400);
         echo json_encode(array('ok' => $reussi));
     } else {
-        header('Location: index.html?contact=' . ($reussi ? 'envoye' : 'erreur') . '#contact', true, 303);
+        header('Location: index.php?contact=' . ($reussi ? 'envoye' : 'erreur') . '#contact', true, 303);
     }
     exit;
 }
@@ -34,7 +34,7 @@ function champ($nom)
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: index.html#contact', true, 303);
+    header('Location: index.php#contact', true, 303);
     exit;
 }
 
