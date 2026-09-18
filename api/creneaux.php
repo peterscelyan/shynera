@@ -39,7 +39,8 @@ try {
         $depuis = date('Y-m-d');
     }
 
-    $jours = min(31, max(1, (int) ($_GET['jours'] ?? 14)));
+    /* Jusqu'a l'horizon de reservation : la fenetre affiche un calendrier. */
+    $jours = min(reglages()['horizon_jours'] + 1, max(1, (int) ($_GET['jours'] ?? 14)));
 
     $noms = [];
     foreach (travailleurs_actifs() as $travailleur) {

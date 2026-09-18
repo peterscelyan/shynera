@@ -470,7 +470,7 @@ if (formulaire) {
     creneauxCharges = null;
     prestationChargee = p.value;
 
-    fetch('api/creneaux.php?prestation=' + encodeURIComponent(p.value) + '&jours=21', { headers: { Accept: 'application/json' } })
+    fetch('api/creneaux.php?prestation=' + encodeURIComponent(p.value) + '&jours=57', { headers: { Accept: 'application/json' } })
       .then(function (reponse) { return reponse.json(); })
       .then(function (donnees) {
         if (!donnees || donnees.erreur) throw new Error('erreur');
@@ -495,7 +495,7 @@ if (formulaire) {
     if (!jours.length) {
       var vide = document.createElement('p');
       vide.className = 'etape__aide';
-      vide.textContent = 'Aucun créneau libre dans les trois prochaines semaines. Écrivez-moi, on trouvera une solution.';
+      vide.textContent = 'Aucun créneau libre pour le moment. Écrivez-moi, on trouvera une solution.';
       zoneCreneaux.appendChild(vide);
       return;
     }
@@ -503,39 +503,111 @@ if (formulaire) {
     /* Si le creneau choisi n'existe plus, on repart de zero. */
     if (creneau && !jours.some(function (j) { return j.date === creneau.date; })) creneau = null;
 
+    /* Les jours libres, retrouves par date. */
+    var parDate = {};
+    jours.forEach(function (jour) { parDate[jour.date] = jour; });
+
     var jourActif = (creneau && creneau.date) || jours[0].date;
+    var moisAffiche = jourActif.slice(0, 7);          /* "2026-09" */
+    var premierMois = jours[0].date.slice(0, 7);
+    var dernierMois = jours[jours.length - 1].date.slice(0, 7);
 
-    var onglets = document.createElement('div');
-    onglets.className = 'creneaux__jours';
-    jours.forEach(function (jour) {
-      var bouton = document.createElement('button');
-      bouton.type = 'button';
-      bouton.className = 'creneaux__jour' + (jour.date === jourActif ? ' creneaux__jour--actif' : '');
-      bouton.setAttribute('aria-pressed', jour.date === jourActif ? 'true' : 'false');
-      var nom = document.createElement('strong');
-      nom.textContent = dateEnFrancais(jour.date, true);
-      var nombre = document.createElement('small');
-      nombre.textContent = jour.creneaux.length + (jour.creneaux.length > 1 ? ' créneaux' : ' créneau');
-      bouton.appendChild(nom);
-      bouton.appendChild(nombre);
-      bouton.addEventListener('click', function () {
-        jourActif = jour.date;
-        afficherHeures(jour);
-        onglets.querySelectorAll('.creneaux__jour').forEach(function (b) {
-          b.classList.remove('creneaux__jour--actif');
-          b.setAttribute('aria-pressed', 'false');
-        });
-        bouton.classList.add('creneaux__jour--actif');
-        bouton.setAttribute('aria-pressed', 'true');
-      });
-      onglets.appendChild(bouton);
-    });
-
+    var calendrier = document.createElement('div');
     var heures = document.createElement('div');
     heures.className = 'creneaux__heures';
-
-    zoneCreneaux.appendChild(onglets);
+    zoneCreneaux.appendChild(calendrier);
     zoneCreneaux.appendChild(heures);
+
+    function texteDate(annee, mois, jour) {
+      return annee + '-' + ('0' + mois).slice(-2) + '-' + ('0' + jour).slice(-2);
+    }
+
+    /* Un mois complet, du lundi au dimanche. */
+    function afficherMois() {
+      calendrier.innerHTML = '';
+      var annee = Number(moisAffiche.slice(0, 4));
+      var mois  = Number(moisAffiche.slice(5, 7));
+
+      var barre = document.createElement('div');
+      barre.className = 'creneaux__barre';
+
+      var precedent = document.createElement('button');
+      precedent.type = 'button';
+      precedent.className = 'creneaux__fleche';
+      precedent.textContent = '←';
+      precedent.setAttribute('aria-label', 'Mois précédent');
+      precedent.disabled = moisAffiche <= premierMois;
+      precedent.addEventListener('click', function () {
+        moisAffiche = mois === 1 ? (annee - 1) + '-12' : annee + '-' + ('0' + (mois - 1)).slice(-2);
+        afficherMois();
+      });
+
+      var titre = document.createElement('p');
+      titre.className = 'creneaux__mois';
+      titre.textContent = MOIS[mois - 1] + ' ' + annee;
+
+      var suivantMois = document.createElement('button');
+      suivantMois.type = 'button';
+      suivantMois.className = 'creneaux__fleche';
+      suivantMois.textContent = '→';
+      suivantMois.setAttribute('aria-label', 'Mois suivant');
+      suivantMois.disabled = moisAffiche >= dernierMois;
+      suivantMois.addEventListener('click', function () {
+        moisAffiche = mois === 12 ? (annee + 1) + '-01' : annee + '-' + ('0' + (mois + 1)).slice(-2);
+        afficherMois();
+      });
+
+      barre.appendChild(precedent);
+      barre.appendChild(titre);
+      barre.appendChild(suivantMois);
+      calendrier.appendChild(barre);
+
+      var grille = document.createElement('div');
+      grille.className = 'creneaux__calendrier';
+
+      ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].forEach(function (nom) {
+        var entete = document.createElement('span');
+        entete.className = 'creneaux__entete';
+        entete.textContent = nom;
+        grille.appendChild(entete);
+      });
+
+      var premier = new Date(annee, mois - 1, 1);
+      var decalage = (premier.getDay() + 6) % 7;             /* lundi = 0 */
+      var nbJours = new Date(annee, mois, 0).getDate();
+
+      for (var vide = 0; vide < decalage; vide++) {
+        grille.appendChild(document.createElement('span'));
+      }
+
+      for (var numero = 1; numero <= nbJours; numero++) {
+        (function (numero) {
+          var date = texteDate(annee, mois, numero);
+          var jour = parDate[date];
+          var bouton = document.createElement('button');
+          bouton.type = 'button';
+          bouton.className = 'creneaux__case';
+          bouton.textContent = numero;
+          if (!jour) {
+            bouton.disabled = true;
+            bouton.title = 'Aucune disponibilité ce jour-là';
+          } else {
+            bouton.classList.add('creneaux__case--libre');
+            bouton.title = jour.creneaux.length + (jour.creneaux.length > 1 ? ' créneaux libres' : ' créneau libre');
+            if (date === jourActif) bouton.classList.add('creneaux__case--actif');
+            bouton.setAttribute('aria-pressed', date === jourActif ? 'true' : 'false');
+            bouton.addEventListener('click', function () {
+              jourActif = date;
+              afficherMois();
+              afficherHeures(jour);
+            });
+          }
+          grille.appendChild(bouton);
+        })(numero);
+      }
+
+      calendrier.appendChild(grille);
+    }
 
     function afficherHeures(jour) {
       heures.innerHTML = '';
@@ -570,8 +642,8 @@ if (formulaire) {
       heures.appendChild(grille);
     }
 
-    var jourChoisi = jours.filter(function (j) { return j.date === jourActif; })[0] || jours[0];
-    afficherHeures(jourChoisi);
+    afficherMois();
+    afficherHeures(parDate[jourActif] || jours[0]);
   }
 
   /* --- Avec qui : on ne pose la question que si plusieurs sont libres. ------ */
