@@ -162,6 +162,17 @@ function pied(): void
 {
     ?>
 </main>
+<script>
+/* Apres un enregistrement, on revient a l'endroit de la page ou on etait
+   (le jour choisi, ou les horaires habituels) au lieu de remonter en haut. */
+window.addEventListener('load', function () {
+  if (!location.hash) return;
+  var cible = document.getElementById(location.hash.slice(1));
+  /* Le navigateur remet parfois la page en haut apres le chargement :
+     on attend la fin pour se replacer. */
+  if (cible) setTimeout(function () { cible.scrollIntoView({ behavior: 'instant', block: 'start' }); }, 0);
+});
+</script>
 </body>
 </html>
 <?php

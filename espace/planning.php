@@ -21,7 +21,29 @@ function reglages(): array
         'delai_minimum'   => 24,  /* heures : on ne reserve pas pour tout de suite */
         'horizon_jours'   => 56,  /* on ouvre la reservation sur 8 semaines */
         'annulation'      => 24,  /* heures avant le rendez-vous */
+        'ouverture'       => '08:00', /* premiere heure ou l'equipe peut travailler */
+        'fermeture'       => '20:00', /* derniere heure */
     ];
+}
+
+/* Les heures proposees dans l'espace pro : de l'ouverture a la fermeture,
+   toutes les 30 minutes. */
+function heures_possibles(): array
+{
+    $r = reglages();
+    $heures = [];
+    $heure = strtotime($r['ouverture']);
+    $fin   = strtotime($r['fermeture']);
+    while ($heure <= $fin) {
+        $heures[] = date('H:i', $heure);
+        $heure += $r['pas'] * 60;
+    }
+    return $heures;
+}
+
+function heure_dans_ouverture(string $heure): bool
+{
+    return in_array($heure, heures_possibles(), true);
 }
 
 /* Une date en francais : "lundi 21 septembre 2026 a 8 h 30". */
@@ -166,6 +188,94 @@ function creneau_libre(int $debut, int $fin, array $rendezVous, int $margeSecond
         }
     }
     return true;
+}
+
+/* --------------------------------------------------------------------------
+   Protection des rendez-vous deja pris
+   -------------------------------------------------------------------------- */
+
+/* Les rendez-vous confirmes d'un travailleur, un jour donne. */
+function reservations_du_jour(int $travailleurId, string $date): array
+{
+    $requete = bdd()->prepare(
+        "SELECT * FROM reservations
+         WHERE travailleur_id = ? AND statut = 'confirmee' AND debut >= ? AND debut <= ?
+         ORDER BY debut"
+    );
+    $requete->execute([$travailleurId, $date . ' 00:00:00', $date . ' 23:59:59']);
+    return $requete->fetchAll();
+}
+
+/* Le rendez-vous tient-il entierement dans une des plages proposees ? */
+function reservation_couverte(array $reservation, array $plages): bool
+{
+    $debut = substr($reservation['debut'], 11, 5);
+    $fin   = substr($reservation['fin'], 11, 5);
+    foreach ($plages as [$d, $f]) {
+        if (substr((string) $d, 0, 5) <= $debut && $fin <= substr((string) $f, 0, 5)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Un autre travailleur pourrait-il prendre ce rendez-vous ? Renvoie son id. */
+function remplacant_possible(array $reservation, int $exclure): ?int
+{
+    $jour       = new DateTimeImmutable(substr($reservation['debut'], 0, 10));
+    $horaires   = horaires_habituels();
+    $exceptions = exceptions_entre($jour->format('Y-m-d'), $jour->format('Y-m-d'));
+    $marge      = reglages()['marge_trajet'] * 60;
+    $debut      = strtotime($reservation['debut']);
+    $fin        = strtotime($reservation['fin']);
+
+    foreach (travailleurs_actifs() as $travailleur) {
+        $id = (int) $travailleur['id'];
+        if ($id === $exclure) {
+            continue;
+        }
+
+        /* Le creneau tient-il dans ses heures de travail ce jour-la ? */
+        $dansSesHeures = false;
+        foreach (plages_du_jour($id, $jour, $horaires, $exceptions) as [$d, $f]) {
+            $ouverture = strtotime($jour->format('Y-m-d') . ' ' . $d);
+            $fermeture = strtotime($jour->format('Y-m-d') . ' ' . $f);
+            if ($debut >= $ouverture && $fin <= $fermeture) {
+                $dansSesHeures = true;
+                break;
+            }
+        }
+        if (!$dansSesHeures) {
+            continue;
+        }
+
+        /* Est-il libre a ce moment-la, trajet compris ? */
+        $siens = reservations_entre($jour->format('Y-m-d'), $jour->modify('+1 day')->format('Y-m-d'));
+        if (creneau_libre($debut, $fin, $siens[$id] ?? [], $marge)) {
+            return $id;
+        }
+    }
+    return null;
+}
+
+/**
+ * Ce que ce changement d'horaire ferait aux rendez-vous deja pris.
+ *
+ * @return array liste de ['reservation' => ligne, 'remplacant' => id ou null]
+ */
+function consequences_changement(int $travailleurId, string $date, array $nouvellesPlages): array
+{
+    $consequences = [];
+    foreach (reservations_du_jour($travailleurId, $date) as $reservation) {
+        if (reservation_couverte($reservation, $nouvellesPlages)) {
+            continue;
+        }
+        $consequences[] = [
+            'reservation' => $reservation,
+            'remplacant'  => remplacant_possible($reservation, $travailleurId),
+        ];
+    }
+    return $consequences;
 }
 
 /**

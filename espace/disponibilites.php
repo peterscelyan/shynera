@@ -4,23 +4,26 @@
    --------------------------------------------------------------------------
    Deux facons de travailler, au choix :
 
-   1. LE CALENDRIER (en haut) : tu cliques sur une date et tu dis quand tu es
-      disponible ce jour-la. Pratique quand les horaires changent tout le temps
-      (etudiant, flexi-job). Ce que tu mets sur une date REMPLACE tes horaires
-      habituels pour cette date.
+   1. LE CALENDRIER (en haut), mois par mois : tu cliques sur une date et tu
+      dis quand tu es disponible ce jour-la. Pratique quand les horaires
+      changent tout le temps (etudiant, flexi-job). Ce que tu mets sur une
+      date REMPLACE tes horaires habituels pour cette date.
 
    2. LES HORAIRES HABITUELS (en bas) : les memes heures chaque semaine. Ils
       servent de base pour toutes les dates que tu n'as pas reglees a la main.
+
+   Un horaire ne peut pas etre reduit si un rendez-vous s'y trouve deja, sauf
+   si un autre travailleur peut le reprendre : dans ce cas le rendez-vous lui
+   est confie et tout le monde est prevenu par e-mail.
    ========================================================================== */
 
 declare(strict_types=1);
 require_once __DIR__ . '/commun.php';
 require_once __DIR__ . '/planning.php';
+require_once __DIR__ . '/courriel.php';
 
 $travailleur = exiger_connexion();
 $id = (int) $travailleur['id'];
-
-const SEMAINES_AFFICHEES = 4;
 
 /* Supprime tout ce qui a ete regle a la main sur une date. */
 function vider_date(int $id, string $date): void
@@ -29,45 +32,130 @@ function vider_date(int $id, string $date): void
     $requete->execute([$id, $date]);
 }
 
-/* Les dates a traiter : celle demandee, plus les memes jours des semaines
-   suivantes si le visiteur a coche "repeter". */
+/* Les dates visees : celle demandee, plus les memes jours de la semaine
+   jusqu'a la fin du mois si "repeter" est coche. */
 function dates_visees(string $date, bool $repeter): array
 {
     $dates = [$date];
     if ($repeter) {
-        $depart = new DateTimeImmutable($date);
-        for ($i = 1; $i < SEMAINES_AFFICHEES; $i++) {
-            $dates[] = $depart->modify('+' . $i . ' weeks')->format('Y-m-d');
+        $jour = new DateTimeImmutable($date);
+        $mois = $jour->format('m');
+        while (true) {
+            $jour = $jour->modify('+1 week');
+            if ($jour->format('m') !== $mois) {
+                break;
+            }
+            $dates[] = $jour->format('Y-m-d');
         }
     }
     return $dates;
+}
+
+/* Confie un rendez-vous a un autre travailleur et previent tout le monde. */
+function confier_reservation(array $reservation, int $nouveauId, string $ancienNom): void
+{
+    $requete = bdd()->prepare('UPDATE reservations SET travailleur_id = ? WHERE id = ?');
+    $requete->execute([$nouveauId, $reservation['id']]);
+
+    $requete = bdd()->prepare('SELECT nom, email FROM travailleurs WHERE id = ?');
+    $requete->execute([$nouveauId]);
+    $nouveau = $requete->fetch();
+    if (!$nouveau) {
+        return;
+    }
+
+    $quand = strftime_fr(new DateTimeImmutable($reservation['debut']), true, true);
+
+    envoyer_courriel(
+        $reservation['client_email'],
+        'Votre rendez-vous Shynera : changement de personne',
+        "Bonjour " . $reservation['client_nom'] . ",\n\n"
+        . "Votre rendez-vous du " . $quand . " est maintenu, mais c'est " . $nouveau['nom']
+        . " qui viendra, et non " . $ancienNom . ".\n\n"
+        . "Tout le reste ne change pas : " . $reservation['prestation'] . ", " . $reservation['prix'] . " €.\n\n"
+        . "À bientôt,\nShynera\n",
+        $nouveau['email'],
+        $nouveau['email']
+    );
+
+    envoyer_courriel(
+        $nouveau['email'],
+        'Rendez-vous qui te revient : ' . $reservation['client_nom'] . ' le ' . (new DateTimeImmutable($reservation['debut']))->format('d/m à H:i'),
+        "Ce rendez-vous t'a été confié.\n\n"
+        . $quand . "\n" . $reservation['prestation'] . " — " . $reservation['vehicule'] . "\n"
+        . $reservation['client_nom'] . " — " . ($reservation['client_telephone'] ?: '-') . "\n"
+        . ($reservation['adresse'] ? $reservation['adresse'] . ', ' : '') . $reservation['code_postal'] . "\n",
+        $reservation['client_email'],
+        $nouveau['email']
+    );
+}
+
+/**
+ * Applique un changement d'horaire sur une liste de dates, en protegeant les
+ * rendez-vous. Renvoie [succes, message].
+ */
+function appliquer_changement(int $id, array $dates, array $nouvellesPlages, string $nomTravailleur): array
+{
+    $bloquants = [];
+    $aConfier  = [];
+
+    foreach ($dates as $date) {
+        foreach (consequences_changement($id, $date, $nouvellesPlages) as $consequence) {
+            if ($consequence['remplacant'] === null) {
+                $bloquants[] = $consequence['reservation'];
+            } else {
+                $aConfier[] = $consequence;
+            }
+        }
+    }
+
+    if ($bloquants) {
+        $details = [];
+        foreach ($bloquants as $r) {
+            $details[] = strftime_fr(new DateTimeImmutable($r['debut']), true) . ' (' . $r['client_nom'] . ')';
+        }
+        return [false, "Impossible : un rendez-vous est déjà pris à ce moment-là et personne d'autre n'est disponible — "
+            . implode(', ', $details) . ". Contacte le client pour déplacer le rendez-vous, puis reviens ici."];
+    }
+
+    foreach ($aConfier as $consequence) {
+        confier_reservation($consequence['reservation'], (int) $consequence['remplacant'], $nomTravailleur);
+    }
+
+    return [true, $aConfier ? count($aConfier) . ' rendez-vous confié(s) à un collègue, tout le monde a été prévenu.' : ''];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifier_jeton();
     $action  = (string) ($_POST['action'] ?? '');
     $date    = (string) ($_POST['jour_date'] ?? '');
+    $mois    = (string) ($_POST['mois'] ?? '');
     $repeter = !empty($_POST['repeter']);
-    $retour  = 'disponibilites.php' . ($date !== '' ? '?jour=' . urlencode($date) : '');
+    $retour  = 'disponibilites.php?mois=' . urlencode($mois) . ($date !== '' ? '&jour=' . urlencode($date) : '') . '#jour';
 
     /* --- Calendrier : je travaille ce jour-la, de X a Y --- */
     if ($action === 'jour_travaille') {
         $debut = (string) ($_POST['debut'] ?? '');
         $fin   = (string) ($_POST['fin'] ?? '');
 
-        if (!date_valide($date) || !heure_valide($debut) || !heure_valide($fin)) {
+        if (!date_valide($date) || !heure_dans_ouverture($debut) || !heure_dans_ouverture($fin)) {
             message('Vérifie la date et les heures.', 'erreur');
         } elseif ($debut >= $fin) {
             message("L'heure de fin doit être après l'heure de début.", 'erreur');
         } else {
-            $requete = bdd()->prepare('INSERT INTO exceptions (travailleur_id, jour_date, genre, debut, fin, motif) VALUES (?, ?, ?, ?, ?, NULL)');
-            foreach (dates_visees($date, $repeter) as $jour) {
-                /* Un jour ferme redevient ouvert des qu'on ajoute une plage. */
-                $menage = bdd()->prepare("DELETE FROM exceptions WHERE travailleur_id = ? AND jour_date = ? AND genre = 'ferme'");
-                $menage->execute([$id, $jour]);
-                $requete->execute([$id, $jour, 'ouvert', $debut . ':00', $fin . ':00']);
+            $dates = dates_visees($date, $repeter);
+            [$ok, $note] = appliquer_changement($id, $dates, [[$debut . ':00', $fin . ':00']], $travailleur['nom']);
+
+            if (!$ok) {
+                message($note, 'erreur');
+            } else {
+                $ajout  = bdd()->prepare('INSERT INTO exceptions (travailleur_id, jour_date, genre, debut, fin, motif) VALUES (?, ?, ?, ?, ?, NULL)');
+                foreach ($dates as $jour) {
+                    vider_date($id, $jour);
+                    $ajout->execute([$id, $jour, 'ouvert', $debut . ':00', $fin . ':00']);
+                }
+                message(trim((count($dates) > 1 ? 'Enregistré pour ' . count($dates) . ' dates. ' : 'Enregistré. ') . $note));
             }
-            message($repeter ? 'Enregistré pour les ' . SEMAINES_AFFICHEES . ' semaines.' : 'Enregistré.');
         }
     }
 
@@ -76,36 +164,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!date_valide($date)) {
             message('Date invalide.', 'erreur');
         } else {
-            $requete = bdd()->prepare('INSERT INTO exceptions (travailleur_id, jour_date, genre, debut, fin, motif) VALUES (?, ?, ?, NULL, NULL, ?)');
-            foreach (dates_visees($date, $repeter) as $jour) {
-                vider_date($id, $jour);
-                $requete->execute([$id, $jour, 'ferme', mb_substr(trim((string) ($_POST['motif'] ?? '')), 0, 120) ?: null]);
+            $dates = dates_visees($date, $repeter);
+            [$ok, $note] = appliquer_changement($id, $dates, [], $travailleur['nom']);
+
+            if (!$ok) {
+                message($note, 'erreur');
+            } else {
+                $ajout = bdd()->prepare('INSERT INTO exceptions (travailleur_id, jour_date, genre, debut, fin, motif) VALUES (?, ?, ?, NULL, NULL, NULL)');
+                foreach ($dates as $jour) {
+                    vider_date($id, $jour);
+                    $ajout->execute([$id, $jour, 'ferme']);
+                }
+                message(trim('Journée(s) marquée(s) comme non travaillée(s). ' . $note));
             }
-            message('Journée marquée comme non travaillée.');
         }
     }
 
     /* --- Calendrier : revenir aux horaires habituels --- */
     if ($action === 'jour_habituel') {
-        vider_date($id, $date);
-        message('Retour aux horaires habituels pour cette date.');
-    }
+        $horaires = horaires_habituels();
+        $habituel = $horaires[$id][(int) (new DateTimeImmutable($date))->format('N')] ?? [];
+        [$ok, $note] = appliquer_changement($id, [$date], $habituel, $travailleur['nom']);
 
-    /* --- Calendrier : retirer une plage d'une date --- */
-    if ($action === 'plage_date_supprimer') {
-        $requete = bdd()->prepare('DELETE FROM exceptions WHERE id = ? AND travailleur_id = ?');
-        $requete->execute([(int) ($_POST['exception'] ?? 0), $id]);
-        message('Plage retirée.');
+        if (!$ok) {
+            message($note, 'erreur');
+        } else {
+            vider_date($id, $date);
+            message(trim('Retour aux horaires habituels. ' . $note));
+        }
     }
 
     /* --- Horaires habituels : ajouter une plage --- */
     if ($action === 'ajouter_plage') {
-        $jour  = (int) ($_POST['jour'] ?? 0);
-        $debut = (string) ($_POST['debut'] ?? '');
-        $fin   = (string) ($_POST['fin'] ?? '');
-        $retour = 'disponibilites.php#habituels';
+        $jour   = (int) ($_POST['jour'] ?? 0);
+        $debut  = (string) ($_POST['debut'] ?? '');
+        $fin    = (string) ($_POST['fin'] ?? '');
+        $retour = 'disponibilites.php?mois=' . urlencode($mois) . '#habituels';
 
-        if ($jour < 1 || $jour > 7 || !heure_valide($debut) || !heure_valide($fin)) {
+        if ($jour < 1 || $jour > 7 || !heure_dans_ouverture($debut) || !heure_dans_ouverture($fin)) {
             message('Vérifie le jour et les heures.', 'erreur');
         } elseif ($debut >= $fin) {
             message("L'heure de fin doit être après l'heure de début.", 'erreur');
@@ -126,8 +222,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'supprimer_plage') {
         $requete = bdd()->prepare('DELETE FROM disponibilites WHERE id = ? AND travailleur_id = ?');
         $requete->execute([(int) ($_POST['plage'] ?? 0), $id]);
-        message('Horaire habituel supprimé.');
-        $retour = 'disponibilites.php#habituels';
+        message('Horaire habituel supprimé. Les dates réglées à la main ne changent pas.');
+        $retour = 'disponibilites.php?mois=' . urlencode($mois) . '#habituels';
     }
 
     header('Location: ' . $retour);
@@ -137,16 +233,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 /* ---------------------------------------------------------------- Affichage */
 
 $aujourdhui = new DateTimeImmutable('today');
-$decalage   = max(0, min(12, (int) ($_GET['semaine'] ?? 0)));
-$premier    = $aujourdhui->modify('monday this week')->modify('+' . $decalage . ' weeks');
-$dernier    = $premier->modify('+' . (SEMAINES_AFFICHEES * 7 - 1) . ' days');
+
+/* Le mois affiche. */
+$moisDemande = (string) ($_GET['mois'] ?? '');
+$premierDuMois = preg_match('/^\d{4}-\d{2}$/', $moisDemande)
+    ? new DateTimeImmutable($moisDemande . '-01')
+    : $aujourdhui->modify('first day of this month');
+$dernierDuMois = $premierDuMois->modify('last day of this month');
+
+/* La grille commence au lundi precedent et finit au dimanche suivant. */
+$debutGrille = $premierDuMois->modify('monday this week');
+if ($debutGrille > $premierDuMois) {
+    $debutGrille = $debutGrille->modify('-1 week');
+}
+$finGrille = $dernierDuMois->modify('sunday this week');
+if ($finGrille < $dernierDuMois) {
+    $finGrille = $finGrille->modify('+1 week');
+}
+$nbCases = (int) $debutGrille->diff($finGrille)->days + 1;
 
 $horaires   = horaires_habituels();
-$exceptions = exceptions_entre($premier->format('Y-m-d'), $dernier->format('Y-m-d'));
+$exceptions = exceptions_entre($debutGrille->format('Y-m-d'), $finGrille->format('Y-m-d'));
 
-/* Rendez-vous de la periode, pour les montrer sur le calendrier. */
+/* Rendez-vous du mois affiche, pour les montrer sur le calendrier. */
 $requete = bdd()->prepare("SELECT debut FROM reservations WHERE travailleur_id = ? AND statut = 'confirmee' AND debut BETWEEN ? AND ?");
-$requete->execute([$id, $premier->format('Y-m-d 00:00:00'), $dernier->format('Y-m-d 23:59:59')]);
+$requete->execute([$id, $debutGrille->format('Y-m-d 00:00:00'), $finGrille->format('Y-m-d 23:59:59')]);
 $rendezVous = [];
 foreach ($requete->fetchAll() as $r) {
     $jour = substr($r['debut'], 0, 10);
@@ -158,16 +269,12 @@ $jourChoisi = (string) ($_GET['jour'] ?? '');
 if (!date_valide($jourChoisi)) {
     $jourChoisi = $aujourdhui->format('Y-m-d');
 }
-$dateChoisie   = new DateTimeImmutable($jourChoisi);
-$duJourChoisi  = $exceptions[$id][$jourChoisi] ?? [];
-if (!$duJourChoisi) {
-    /* La date choisie peut etre hors de la periode affichee. */
-    $autres = exceptions_entre($jourChoisi, $jourChoisi);
-    $duJourChoisi = $autres[$id][$jourChoisi] ?? [];
-}
+$dateChoisie  = new DateTimeImmutable($jourChoisi);
+$duJourChoisi = exceptions_entre($jourChoisi, $jourChoisi)[$id][$jourChoisi] ?? [];
 $plagesChoisies = plages_du_jour($id, $dateChoisie, $horaires, [$id => [$jourChoisi => $duJourChoisi]]);
 $surMesure      = (bool) $duJourChoisi;
 $repos          = $surMesure && $duJourChoisi[0]['genre'] === 'ferme';
+$rdvDuJour      = reservations_du_jour($id, $jourChoisi);
 
 /* Plages habituelles, rangees par jour de la semaine. */
 $requete = bdd()->prepare('SELECT * FROM disponibilites WHERE travailleur_id = ? ORDER BY jour, debut');
@@ -175,6 +282,19 @@ $requete->execute([$id]);
 $parJour = array_fill_keys(array_keys(JOURS()), []);
 foreach ($requete->fetchAll() as $plage) {
     $parJour[(int) $plage['jour']][] = $plage;
+}
+
+$heures = heures_possibles();
+$moisCourant = $premierDuMois->format('Y-m');
+
+/* Liste deroulante d'heures, par pas de 30 minutes. */
+function choix_heure(string $nom, string $identifiant, string $valeur, array $heures): void
+{
+    echo '<select id="' . h($identifiant) . '" name="' . h($nom) . '">';
+    foreach ($heures as $heure) {
+        echo '<option value="' . h($heure) . '"' . ($heure === $valeur ? ' selected' : '') . '>' . h(str_replace(':', ' h ', $heure)) . '</option>';
+    }
+    echo '</select>';
 }
 
 entete('Mes disponibilités', $travailleur);
@@ -187,13 +307,11 @@ entete('Mes disponibilités', $travailleur);
 </p>
 
 <div class="calendrier__barre">
-  <a class="bouton bouton--creux bouton--petit<?= $decalage === 0 ? ' bouton--inactif' : '' ?>"
-     href="?semaine=<?= max(0, $decalage - SEMAINES_AFFICHEES) ?>&amp;jour=<?= h($jourChoisi) ?>">← <?= SEMAINES_AFFICHEES ?> semaines avant</a>
-  <p class="calendrier__periode">
-    Du <?= h(strftime_fr($premier, false)) ?> au <?= h(strftime_fr($dernier, false, true)) ?>
-  </p>
   <a class="bouton bouton--creux bouton--petit"
-     href="?semaine=<?= $decalage + SEMAINES_AFFICHEES ?>&amp;jour=<?= h($jourChoisi) ?>"><?= SEMAINES_AFFICHEES ?> semaines après →</a>
+     href="?mois=<?= $premierDuMois->modify('-1 month')->format('Y-m') ?>&amp;jour=<?= h($jourChoisi) ?>">← <?= h(mois_fr($premierDuMois->modify('-1 month'))) ?></a>
+  <p class="calendrier__periode"><?= h(mois_fr($premierDuMois)) ?> <?= $premierDuMois->format('Y') ?></p>
+  <a class="bouton bouton--creux bouton--petit"
+     href="?mois=<?= $premierDuMois->modify('+1 month')->format('Y-m') ?>&amp;jour=<?= h($jourChoisi) ?>"><?= h(mois_fr($premierDuMois->modify('+1 month'))) ?> →</a>
 </div>
 
 <div class="calendrier">
@@ -201,25 +319,23 @@ entete('Mes disponibilités', $travailleur);
     <div class="calendrier__entete"><?= h(mb_substr($nomJour, 0, 3)) ?>.</div>
   <?php endforeach; ?>
 
-  <?php for ($i = 0; $i < SEMAINES_AFFICHEES * 7; $i++): ?>
+  <?php for ($i = 0; $i < $nbCases; $i++): ?>
     <?php
-    $jour   = $premier->modify('+' . $i . ' days');
+    $jour   = $debutGrille->modify('+' . $i . ' days');
     $cle    = $jour->format('Y-m-d');
     $plages = plages_du_jour($id, $jour, $horaires, $exceptions);
     $perso  = !empty($exceptions[$id][$cle]);
-    $passe  = $cle < $aujourdhui->format('Y-m-d');
 
     $classes = 'calendrier__jour';
     if ($plages) $classes .= ' calendrier__jour--dispo';
     if ($perso)  $classes .= ' calendrier__jour--perso';
-    if ($passe)  $classes .= ' calendrier__jour--passe';
+    if ($cle < $aujourdhui->format('Y-m-d')) $classes .= ' calendrier__jour--passe';
+    if ($jour->format('Y-m') !== $moisCourant) $classes .= ' calendrier__jour--hors';
     if ($cle === $jourChoisi) $classes .= ' calendrier__jour--choisi';
     if ($cle === $aujourdhui->format('Y-m-d')) $classes .= ' calendrier__jour--aujourdhui';
     ?>
-    <a class="<?= $classes ?>" href="?semaine=<?= $decalage ?>&amp;jour=<?= $cle ?>#jour">
-      <span class="calendrier__numero">
-        <?= (int) $jour->format('j') ?><?php if ((int) $jour->format('j') === 1): ?> <?= h(mois_fr($jour)) ?><?php endif; ?>
-      </span>
+    <a class="<?= $classes ?>" href="?mois=<?= h($moisCourant) ?>&amp;jour=<?= $cle ?>#jour">
+      <span class="calendrier__numero"><?= (int) $jour->format('j') ?></span>
       <span class="calendrier__heures">
         <?php if (!$plages): ?>
           —
@@ -257,37 +373,32 @@ entete('Mes disponibilités', $travailleur);
     <?php endif; ?>
   </p>
 
-  <?php if ($surMesure && !$repos): ?>
-    <ul class="espace__plages espace__plages--ligne">
-      <?php foreach ($duJourChoisi as $exception): if ($exception['genre'] !== 'ouvert') continue; ?>
-        <li>
-          <span><?= h(substr((string) $exception['debut'], 0, 5)) ?> – <?= h(substr((string) $exception['fin'], 0, 5)) ?></span>
-          <form method="post">
-            <?= champ_jeton() ?>
-            <input type="hidden" name="action" value="plage_date_supprimer">
-            <input type="hidden" name="jour_date" value="<?= h($jourChoisi) ?>">
-            <input type="hidden" name="exception" value="<?= (int) $exception['id'] ?>">
-            <button type="submit" class="espace__retirer" aria-label="Retirer cette plage">×</button>
-          </form>
-        </li>
-      <?php endforeach; ?>
-    </ul>
+  <?php if ($rdvDuJour): ?>
+    <p class="espace__aide espace__aide--rdv">
+      <?= count($rdvDuJour) ?> rendez-vous ce jour-là :
+      <?php foreach ($rdvDuJour as $rang => $r): ?>
+        <?= $rang ? ', ' : '' ?><strong><?= h(heure_fr(new DateTimeImmutable($r['debut']))) ?> – <?= h(heure_fr(new DateTimeImmutable($r['fin']))) ?></strong>
+        (<?= h($r['client_nom']) ?>)
+      <?php endforeach; ?>.
+      Tu ne peux pas retirer ces heures tant que le rendez-vous est confirmé.
+    </p>
   <?php endif; ?>
 
   <form method="post" class="formulaire espace__ligne">
     <?= champ_jeton() ?>
     <input type="hidden" name="action" value="jour_travaille">
     <input type="hidden" name="jour_date" value="<?= h($jourChoisi) ?>">
+    <input type="hidden" name="mois" value="<?= h($moisCourant) ?>">
     <div class="champ">
       <label for="debut">Je travaille de</label>
-      <input id="debut" name="debut" type="time" value="<?= h($plagesChoisies ? substr($plagesChoisies[0][0], 0, 5) : '08:00') ?>" required>
+      <?php choix_heure('debut', 'debut', $plagesChoisies ? substr($plagesChoisies[0][0], 0, 5) : '08:00', $heures); ?>
     </div>
     <div class="champ">
       <label for="fin">à</label>
-      <input id="fin" name="fin" type="time" value="<?= h($plagesChoisies ? substr($plagesChoisies[0][1], 0, 5) : '18:00') ?>" required>
+      <?php choix_heure('fin', 'fin', $plagesChoisies ? substr($plagesChoisies[0][1], 0, 5) : '18:00', $heures); ?>
     </div>
     <div class="champ champ--case">
-      <label><input type="checkbox" name="repeter" value="1"> Aussi les <?= h(mb_strtolower(JOURS()[(int) $dateChoisie->format('N')])) ?>s des <?= SEMAINES_AFFICHEES - 1 ?> semaines suivantes</label>
+      <label><input type="checkbox" name="repeter" value="1"> Aussi les <?= h(mb_strtolower(JOURS()[(int) $dateChoisie->format('N')])) ?>s suivants du mois</label>
     </div>
     <div class="formulaire__pied">
       <button type="submit" class="bouton">Enregistrer</button>
@@ -299,6 +410,7 @@ entete('Mes disponibilités', $travailleur);
       <?= champ_jeton() ?>
       <input type="hidden" name="action" value="jour_repos">
       <input type="hidden" name="jour_date" value="<?= h($jourChoisi) ?>">
+      <input type="hidden" name="mois" value="<?= h($moisCourant) ?>">
       <button type="submit" class="bouton bouton--creux bouton--petit">Je ne travaille pas ce jour</button>
     </form>
 
@@ -307,6 +419,7 @@ entete('Mes disponibilités', $travailleur);
         <?= champ_jeton() ?>
         <input type="hidden" name="action" value="jour_habituel">
         <input type="hidden" name="jour_date" value="<?= h($jourChoisi) ?>">
+        <input type="hidden" name="mois" value="<?= h($moisCourant) ?>">
         <button type="submit" class="bouton bouton--creux bouton--petit">Revenir à mes horaires habituels</button>
       </form>
     <?php endif; ?>
@@ -334,6 +447,7 @@ entete('Mes disponibilités', $travailleur);
               <form method="post">
                 <?= champ_jeton() ?>
                 <input type="hidden" name="action" value="supprimer_plage">
+                <input type="hidden" name="mois" value="<?= h($moisCourant) ?>">
                 <input type="hidden" name="plage" value="<?= (int) $plage['id'] ?>">
                 <button type="submit" class="espace__retirer" aria-label="Supprimer cette plage">×</button>
               </form>
@@ -348,6 +462,7 @@ entete('Mes disponibilités', $travailleur);
 <form method="post" class="formulaire espace__ligne">
   <?= champ_jeton() ?>
   <input type="hidden" name="action" value="ajouter_plage">
+  <input type="hidden" name="mois" value="<?= h($moisCourant) ?>">
   <div class="champ">
     <label for="jour">Jour</label>
     <select id="jour" name="jour">
@@ -358,11 +473,11 @@ entete('Mes disponibilités', $travailleur);
   </div>
   <div class="champ">
     <label for="habituel-debut">De</label>
-    <input id="habituel-debut" name="debut" type="time" value="08:00" required>
+    <?php choix_heure('debut', 'habituel-debut', '08:00', $heures); ?>
   </div>
   <div class="champ">
     <label for="habituel-fin">À</label>
-    <input id="habituel-fin" name="fin" type="time" value="18:00" required>
+    <?php choix_heure('fin', 'habituel-fin', '18:00', $heures); ?>
   </div>
   <div class="formulaire__pied">
     <button type="submit" class="bouton bouton--creux">Ajouter</button>

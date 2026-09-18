@@ -76,6 +76,8 @@
 .calendrier__jour--dispo .calendrier__heures { color: var(--eclat-fonce); font-weight: 600; }
 .calendrier__jour--perso { box-shadow: inset 3px 0 0 var(--eclat); }
 .calendrier__jour--passe { opacity: .45; }
+.calendrier__jour--hors { background: var(--brume); opacity: .6; }
+.espace__aide--rdv { border-left: 3px solid var(--eclat); padding-left: var(--pas-2); margin-bottom: var(--pas-2); }
 .calendrier__jour--aujourdhui .calendrier__numero { color: var(--eclat-fonce); }
 .calendrier__jour--choisi { outline: 2px solid var(--encre); outline-offset: -2px; background: var(--brume); }
 .calendrier__rdv { margin-top: auto; font-size: .72rem; font-weight: 700; color: var(--papier); background: var(--encre); padding: .1rem .35rem; align-self: flex-start; }
