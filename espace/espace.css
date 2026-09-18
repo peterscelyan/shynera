@@ -1,0 +1,60 @@
+/* ==========================================================================
+   SHYNERA — espace pro
+   Complete style.css : memes couleurs, memes boutons, memes champs.
+   ========================================================================== */
+
+.espace__entete {
+  background: var(--nuit);
+  color: var(--brume);
+  padding-block: var(--pas-2);
+  margin-bottom: var(--pas-4);
+}
+.espace__entete .marque__mot { color: var(--papier); }
+.espace__entete-interieur {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--pas-3); flex-wrap: wrap;
+}
+.espace__nav { display: flex; align-items: center; gap: var(--pas-3); flex-wrap: wrap; font-size: .95rem; }
+.espace__nav a { color: var(--brume); }
+.espace__nav a:hover { color: var(--papier); }
+.espace__qui { color: var(--microfibre); border-left: 1px solid var(--nuit-clair); padding-left: var(--pas-3); }
+.espace__deconnexion { color: var(--microfibre); }
+
+.espace__contenu { padding-bottom: var(--pas-6); }
+.espace__contenu h1 { margin-bottom: var(--pas-3); }
+.espace__contenu h2 { font-size: 1.3rem; margin-top: var(--pas-5); margin-bottom: var(--pas-2); }
+.espace__aide { color: var(--encre-douce); }
+.espace__formulaire-court { max-width: 26rem; }
+
+.espace__message { padding: .85rem 1rem; border-left: 3px solid var(--eclat); background: var(--brume); margin-bottom: var(--pas-3); }
+.espace__message--erreur { border-left-color: var(--alerte); color: var(--alerte); }
+
+.espace__cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--pas-3); }
+.espace__carte { border: 1px solid var(--microfibre); border-top: 2px solid var(--encre); padding: var(--pas-3); }
+.espace__carte p { margin: 0 0 .3rem; color: var(--encre-douce); }
+.espace__chiffre { font-size: 2.4rem; font-weight: 700; font-variation-settings: 'wdth' 118; line-height: 1; color: var(--encre); }
+
+.espace__semaine { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--pas-2); }
+.espace__jour { border-top: 2px solid var(--microfibre); padding-top: var(--pas-2); }
+.espace__jour h2 { font-size: 1rem; margin: 0 0 .5rem; }
+.espace__plages { display: grid; gap: .35rem; }
+.espace__plages li { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-weight: 600; }
+.espace__retirer {
+  font: inherit; font-size: 1.1rem; line-height: 1; color: var(--encre-douce);
+  background: none; border: 0; padding: .2rem .4rem; cursor: pointer; border-radius: 2px;
+}
+.espace__retirer:hover { background: var(--alerte); color: var(--papier); }
+
+/* Formulaire sur une ligne : ajouter une plage, une exception. */
+.espace__ligne { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--pas-2); max-width: none; }
+.espace__ligne .champ { flex: 0 1 11rem; }
+.espace__ligne .formulaire__pied { flex: 0 0 auto; }
+.espace__ligne select {
+  width: 100%; padding: .8rem 1rem; font: inherit; color: var(--encre);
+  background: var(--papier); border: 1px solid var(--microfibre); border-radius: 2px;
+}
+
+.espace__tableau { width: 100%; border-collapse: collapse; margin-bottom: var(--pas-3); }
+.espace__tableau th, .espace__tableau td { text-align: left; padding: .7rem .6rem; border-bottom: 1px solid var(--microfibre); vertical-align: top; }
+.espace__tableau th { font-size: .85rem; font-variation-settings: 'wdth' 85; color: var(--encre-douce); }
+.espace__tableau small { color: var(--encre-douce); }

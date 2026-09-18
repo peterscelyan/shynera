@@ -1,0 +1,5 @@
+# Le mot de passe de la base de donnees ne doit JAMAIS partir sur GitHub.
+espace/config.php
+
+# Base de test creee sur l'ordinateur pendant le developpement.
+*.sqlite

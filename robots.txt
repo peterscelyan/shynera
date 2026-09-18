@@ -1,0 +1,17 @@
+# VERSION 0 — le site n'est pas encore public.
+# Google et les autres moteurs n'ont pas le droit d'explorer le site.
+#
+# LE JOUR DE LA PUBLICATION (v1) :
+#   1. Supprime les deux lignes "Disallow: /" et "User-agent: *" ci-dessous,
+#      et remets a la place :
+#           User-agent: *
+#           Allow: /
+#   2. Retire aussi la balise <meta name="robots" content="noindex..."> dans
+#      index.html (elle est signalee par un commentaire VERSION 0).
+User-agent: *
+Disallow: /
+
+# L'espace pro ne doit jamais etre indexe, meme en v1.
+Disallow: /espace/
+
+Sitemap: https://shynera.be/sitemap.xml
