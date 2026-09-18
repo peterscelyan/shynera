@@ -665,6 +665,44 @@ html:has(.reservation[open]) { overflow: hidden; }
 .question__choix { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
 .choix--compact .choix__contenu { grid-template-columns: 1fr; text-align: center; padding: .75rem; }
 
+/* Choix du creneau : les jours en haut, les heures en dessous. */
+.creneaux__jours {
+  display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .5rem;
+  scrollbar-width: none;
+}
+.creneaux__jours::-webkit-scrollbar { display: none; }
+.creneaux__jour {
+  display: flex; flex-direction: column; gap: .15rem; flex: 0 0 auto;
+  padding: .6rem .9rem; font: inherit; text-align: left; cursor: pointer;
+  background: var(--papier); color: var(--encre);
+  border: 1px solid var(--microfibre); border-radius: 2px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.creneaux__jour strong { font-weight: 600; font-variation-settings: 'wdth' 105; white-space: nowrap; }
+.creneaux__jour small { font-size: .78rem; color: var(--encre-douce); white-space: nowrap; }
+.creneaux__jour:hover { border-color: var(--encre); }
+.creneaux__jour--actif { background: var(--encre); border-color: var(--encre); color: var(--papier); box-shadow: inset 0 -3px 0 var(--eclat); }
+.creneaux__jour--actif small { color: var(--microfibre); }
+
+.creneaux__titre { margin: var(--pas-3) 0 .6rem; font-weight: 600; font-variation-settings: 'wdth' 108; }
+.creneaux__grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: .5rem; }
+.creneaux__heure {
+  padding: .7rem .4rem; font: inherit; font-weight: 600; cursor: pointer;
+  background: var(--papier); color: var(--encre);
+  border: 1px solid var(--microfibre); border-radius: 2px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.creneaux__heure:hover { border-color: var(--encre); }
+.creneaux__heure--actif { background: var(--encre); border-color: var(--encre); color: var(--papier); }
+
+/* Confirmation finale */
+.etape--confirmation { text-align: center; padding-block: var(--pas-3); }
+.etape__confirme {
+  font-size: 1.25rem; font-weight: 600; font-variation-settings: 'wdth' 108;
+  max-width: none; margin-bottom: var(--pas-2);
+}
+.etape--confirmation .etape__aide { max-width: 46ch; margin-inline: auto; }
+
 /* Recapitulatif */
 .recap { margin: 0 0 var(--pas-2); }
 .recap div { display: grid; grid-template-columns: 8rem 1fr auto; gap: .2rem 1rem; padding: .7rem 0; border-bottom: 1px solid var(--microfibre); }

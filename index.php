@@ -3,6 +3,7 @@
 require __DIR__ . '/espace/prix.php';
 $tarifs = tarifs();
 $remise = remise_lancement();
+$zones  = require __DIR__ . '/zones.php';
 ?>
 <!doctype html>
 <html lang="fr-BE">
@@ -708,29 +709,13 @@ $remise = remise_lancement();
         Liège et les communes voisines ci-dessous, sans frais de déplacement.
         Au-delà, écrivez-moi&nbsp;: je me déplace souvent plus loin quand le planning le permet.
       </p>
-      <!-- ZONE D'INTERVENTION : la fenetre de reservation n'accepte QUE les
-           codes postaux ecrits ici (data-codes-postaux, separes par des espaces).
-           Pour ajouter une commune, ajoute une ligne avec ses codes postaux,
-           et ajoute-la aussi dans "areaServed" tout en haut du fichier. -->
+      <!-- La liste des communes et leurs codes postaux viennent de zones.php.
+           C'est ce meme fichier qui sert a verifier le code postal pendant
+           la reservation : un seul endroit a modifier. -->
       <ul class="zone">
-        <li data-codes-postaux="4000 4020 4030 4031 4032"><span>Liège</span></li>
-        <li data-codes-postaux="4430 4431 4432"><span>Ans</span></li>
-        <li data-codes-postaux="4040 4041 4042"><span>Herstal</span></li>
-        <li data-codes-postaux="4100 4101 4102"><span>Seraing</span></li>
-        <li data-codes-postaux="4050 4051 4052 4053"><span>Chaudfontaine</span></li>
-        <li data-codes-postaux="4620 4621 4623 4624"><span>Fléron</span></li>
-        <li data-codes-postaux="4420"><span>Saint-Nicolas</span></li>
-        <li data-codes-postaux="4460"><span>Grâce-Hollogne</span></li>
-        <li data-codes-postaux="4400"><span>Flémalle</span></li>
-        <li data-codes-postaux="4340 4342"><span>Awans</span></li>
-        <li data-codes-postaux="4680 4681 4682 4683 4684"><span>Oupeye</span></li>
-        <li data-codes-postaux="4600 4601 4602"><span>Visé</span></li>
-        <li data-codes-postaux="4610"><span>Beyne-Heusay</span></li>
-        <li data-codes-postaux="4630 4631 4632 4633"><span>Soumagne</span></li>
-        <li data-codes-postaux="4130"><span>Esneux</span></li>
-        <li data-codes-postaux="4120 4121 4122"><span>Neupré</span></li>
-        <li data-codes-postaux="4450 4451 4452 4453 4458"><span>Juprelle</span></li>
-        <li data-codes-postaux="4670 4671 4672"><span>Blegny</span></li>
+        <?php foreach ($zones as $commune => $codes): ?>
+        <li data-codes-postaux="<?= implode(' ', $codes) ?>"><span><?= $commune ?></span></li>
+        <?php endforeach; ?>
       </ul>
     </div>
   </div>
@@ -886,14 +871,69 @@ $remise = remise_lancement();
         </div>
       </section>
 
-      <section class="etape" data-etape="recapitulatif" hidden>
-        <h2 class="etape__titre" tabindex="-1">Récapitulatif</h2>
+      <section class="etape" data-etape="creneau" hidden>
+        <h2 class="etape__titre" tabindex="-1">Quel créneau&nbsp;?</h2>
+        <p class="etape__aide">Les horaires affichés sont ceux où quelqu'un est réellement disponible.</p>
+        <div class="creneaux" data-creneaux>
+          <p class="etape__aide" data-creneaux-attente>Recherche des disponibilités…</p>
+        </div>
+      </section>
+
+      <section class="etape" data-etape="travailleur" hidden>
+        <h2 class="etape__titre" tabindex="-1">Avec qui&nbsp;?</h2>
+        <p class="etape__aide" data-travailleur-aide></p>
+        <div class="choix-liste" data-liste-travailleurs></div>
+      </section>
+
+      <section class="etape" data-etape="coordonnees" hidden>
+        <h2 class="etape__titre" tabindex="-1">Vos coordonnées</h2>
+
         <dl class="recap" data-recap></dl>
         <p class="recap__total"><span>Total</span> <strong data-recap-total></strong></p>
-        <p class="etape__aide">Déplacement compris. Vous pouvez payer après la prestation.</p>
-        <!-- TEMPORAIRE : la suite (creneau, coordonnees, confirmation) reste a
-             construire. En attendant, ce bouton mene a ton lien de reservation. -->
-        <a href="{{LIEN_RESERVATION}}" class="bouton">Choisir mon créneau</a>
+        <p class="etape__aide">Déplacement compris. Vous pouvez payer après la prestation, en liquide ou par virement.</p>
+
+        <div class="formulaire">
+          <div class="champ">
+            <label for="reservation-nom">Nom</label>
+            <input id="reservation-nom" name="nom" type="text" autocomplete="name" maxlength="120" required>
+          </div>
+          <div class="champ">
+            <label for="reservation-email">E-mail</label>
+            <input id="reservation-email" name="email" type="email" autocomplete="email" maxlength="190" required>
+          </div>
+          <div class="champ">
+            <label for="reservation-telephone">Téléphone</label>
+            <input id="reservation-telephone" name="telephone" type="tel" autocomplete="tel" maxlength="40" required>
+          </div>
+          <div class="champ">
+            <label for="reservation-adresse">Adresse <small>(rue et numéro)</small></label>
+            <input id="reservation-adresse" name="adresse" type="text" autocomplete="street-address" maxlength="255" required>
+          </div>
+          <div class="champ champ--large">
+            <label for="reservation-remarque">Quelque chose à signaler&nbsp;? <small>(facultatif)</small></label>
+            <textarea id="reservation-remarque" name="remarque" rows="3" maxlength="2000"></textarea>
+          </div>
+          <div class="formulaire__piege" aria-hidden="true">
+            <label for="reservation-site">Ne pas remplir</label>
+            <input id="reservation-site" name="site_web" type="text" tabindex="-1" autocomplete="off">
+          </div>
+        </div>
+
+        <p class="etape__aide">
+          Vos coordonnées servent uniquement à réaliser la prestation.
+          <a href="confidentialite.html">Confidentialité</a>
+        </p>
+        <p class="etape__erreur" role="alert" data-erreur-reservation></p>
+      </section>
+
+      <section class="etape etape--confirmation" data-etape="confirmation" hidden>
+        <h2 class="etape__titre" tabindex="-1">C'est réservé</h2>
+        <p class="etape__confirme" data-confirmation></p>
+        <p class="etape__aide">
+          Vous recevez un e-mail de confirmation, avec un lien si vous devez annuler.
+          Vérifiez vos spams s'il n'arrive pas.
+        </p>
+        <button type="button" class="bouton" data-reservation-fermer>Fermer</button>
       </section>
 
     </div>
@@ -902,6 +942,7 @@ $remise = remise_lancement();
       <button type="button" class="bouton bouton--creux" data-reservation-retour>Retour</button>
       <p class="reservation__total" data-reservation-total aria-live="polite"></p>
       <button type="button" class="bouton" data-reservation-suivant>Continuer</button>
+      <button type="button" class="bouton" data-reservation-confirmer hidden>Confirmer la réservation</button>
     </footer>
 
   </form>

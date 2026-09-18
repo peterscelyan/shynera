@@ -129,6 +129,36 @@ Pense à activer le certificat SSL gratuit dans hPanel, et à forcer le HTTPS.
 3. Envoie-toi un message depuis le site. S'il n'arrive pas, regarde dans tes
    spams.
 
+## La réservation en ligne
+
+Le client choisit dans cet ordre : code postal, véhicule, prestation,
+suppléments, accès eau et électricité, **créneau**, **avec qui**, puis ses
+coordonnées. Le site n'affiche que des créneaux réellement libres.
+
+Un créneau est proposé si, ce jour-là, quelqu'un a déclaré travailler, n'est
+pas en congé, n'a pas déjà un rendez-vous, et qu'il reste 30 minutes de trajet
+avant et après. Les réglages sont en haut de `espace/planning.php` :
+
+| Réglage | Valeur |
+|---|---|
+| `pas` | un créneau proposé toutes les 30 minutes |
+| `marge_trajet` | 30 minutes entre deux clients |
+| `delai_minimum` | 24 heures avant le rendez-vous |
+| `horizon_jours` | réservation ouverte sur 8 semaines |
+| `annulation` | annulation possible jusqu'à 24 heures avant |
+
+À chaque réservation, le client reçoit une confirmation avec un lien
+d'annulation, et tu reçois un e-mail avec ses coordonnées. Les rendez-vous
+apparaissent sur ton tableau de bord.
+
+Le prix est **toujours recalculé par le serveur** à partir de `tarifs.php` :
+même si quelqu'un bricole la page dans son navigateur, il paiera le bon prix.
+
+## La zone d'intervention
+
+`zones.php` contient les communes et leurs codes postaux. La liste affichée sur
+le site et la vérification pendant la réservation viennent de ce fichier.
+
 ## L'espace pro (dossier `espace/`)
 
 C'est là que l'équipe entre ses disponibilités. Il fonctionne avec une base de

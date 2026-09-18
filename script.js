@@ -301,10 +301,20 @@ if (formulaire) {
   var accesBloque = fenetre.querySelector('[data-acces-blocage]');
   var recap       = fenetre.querySelector('[data-recap]');
   var recapTotal  = fenetre.querySelector('[data-recap-total]');
+  var zoneCreneaux    = fenetre.querySelector('[data-creneaux]');
+  var listeTravailleurs = fenetre.querySelector('[data-liste-travailleurs]');
+  var aideTravailleur = fenetre.querySelector('[data-travailleur-aide]');
+  var btnConfirmer    = fenetre.querySelector('[data-reservation-confirmer]');
+  var erreurResa      = fenetre.querySelector('[data-erreur-reservation]');
+  var confirmation    = fenetre.querySelector('[data-confirmation]');
 
   var rang = 0;                /* etape affichee */
   var parPointeur = false;     /* dernier choix fait a la souris ou au doigt ? */
   var vehiculeChoisi = false;  /* le visiteur a-t-il choisi un vehicule dans les Tarifs ? */
+  var creneau = null;          /* { date, heure, travailleurs: [id] } */
+  var nomsTravailleurs = {};   /* id -> nom */
+  var creneauxCharges = null;  /* reponse de l'API pour la prestation choisie */
+  var prestationChargee = null;
 
   function euros(montant) { return montant + ' €'; }
 
@@ -436,9 +446,167 @@ if (formulaire) {
     return !!p && prestations[p.value].exterieur;
   }
 
+  /* --- Creneaux : on demande au serveur les heures reellement libres. ------- */
+
+  var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+              'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  var JOURS_SEMAINE = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+  function dateEnFrancais(texte, court) {
+    var d = new Date(texte + 'T12:00:00');
+    var jour = JOURS_SEMAINE[d.getDay()];
+    if (court) jour = jour.slice(0, 3) + '.';
+    return jour + ' ' + d.getDate() + ' ' + MOIS[d.getMonth()];
+  }
+
+  function chargerCreneaux() {
+    var p = coche('prestation');
+    if (!p) return;
+    if (prestationChargee === p.value && creneauxCharges) {
+      afficherCreneaux();
+      return;
+    }
+    zoneCreneaux.innerHTML = '<p class="etape__aide">Recherche des disponibilités…</p>';
+    creneauxCharges = null;
+    prestationChargee = p.value;
+
+    fetch('api/creneaux.php?prestation=' + encodeURIComponent(p.value) + '&jours=21', { headers: { Accept: 'application/json' } })
+      .then(function (reponse) { return reponse.json(); })
+      .then(function (donnees) {
+        if (!donnees || donnees.erreur) throw new Error('erreur');
+        creneauxCharges  = donnees;
+        nomsTravailleurs = donnees.travailleurs || {};
+        afficherCreneaux();
+        majEtat();
+      })
+      .catch(function () {
+        zoneCreneaux.innerHTML = '';
+        var erreur = document.createElement('p');
+        erreur.className = 'etape__erreur';
+        erreur.textContent = "Les créneaux n'ont pas pu être chargés. Réessayez, ou écrivez-moi pour convenir d'un rendez-vous.";
+        zoneCreneaux.appendChild(erreur);
+      });
+  }
+
+  function afficherCreneaux() {
+    zoneCreneaux.innerHTML = '';
+    var jours = (creneauxCharges && creneauxCharges.jours) || [];
+
+    if (!jours.length) {
+      var vide = document.createElement('p');
+      vide.className = 'etape__aide';
+      vide.textContent = 'Aucun créneau libre dans les trois prochaines semaines. Écrivez-moi, on trouvera une solution.';
+      zoneCreneaux.appendChild(vide);
+      return;
+    }
+
+    /* Si le creneau choisi n'existe plus, on repart de zero. */
+    if (creneau && !jours.some(function (j) { return j.date === creneau.date; })) creneau = null;
+
+    var jourActif = (creneau && creneau.date) || jours[0].date;
+
+    var onglets = document.createElement('div');
+    onglets.className = 'creneaux__jours';
+    jours.forEach(function (jour) {
+      var bouton = document.createElement('button');
+      bouton.type = 'button';
+      bouton.className = 'creneaux__jour' + (jour.date === jourActif ? ' creneaux__jour--actif' : '');
+      bouton.setAttribute('aria-pressed', jour.date === jourActif ? 'true' : 'false');
+      var nom = document.createElement('strong');
+      nom.textContent = dateEnFrancais(jour.date, true);
+      var nombre = document.createElement('small');
+      nombre.textContent = jour.creneaux.length + (jour.creneaux.length > 1 ? ' créneaux' : ' créneau');
+      bouton.appendChild(nom);
+      bouton.appendChild(nombre);
+      bouton.addEventListener('click', function () {
+        jourActif = jour.date;
+        afficherHeures(jour);
+        onglets.querySelectorAll('.creneaux__jour').forEach(function (b) {
+          b.classList.remove('creneaux__jour--actif');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        bouton.classList.add('creneaux__jour--actif');
+        bouton.setAttribute('aria-pressed', 'true');
+      });
+      onglets.appendChild(bouton);
+    });
+
+    var heures = document.createElement('div');
+    heures.className = 'creneaux__heures';
+
+    zoneCreneaux.appendChild(onglets);
+    zoneCreneaux.appendChild(heures);
+
+    function afficherHeures(jour) {
+      heures.innerHTML = '';
+      var titre = document.createElement('p');
+      titre.className = 'creneaux__titre';
+      titre.textContent = dateEnFrancais(jour.date, false);
+      heures.appendChild(titre);
+
+      var grille = document.createElement('div');
+      grille.className = 'creneaux__grille';
+      jour.creneaux.forEach(function (c) {
+        var bouton = document.createElement('button');
+        bouton.type = 'button';
+        bouton.className = 'creneaux__heure';
+        bouton.textContent = c.heure.replace(/^0/, '').replace(':', ' h ');
+        var choisi = creneau && creneau.date === jour.date && creneau.heure === c.heure;
+        if (choisi) bouton.classList.add('creneaux__heure--actif');
+        bouton.setAttribute('aria-pressed', choisi ? 'true' : 'false');
+        bouton.addEventListener('click', function () {
+          creneau = { date: jour.date, heure: c.heure, travailleurs: c.travailleurs };
+          grille.querySelectorAll('.creneaux__heure').forEach(function (b) {
+            b.classList.remove('creneaux__heure--actif');
+            b.setAttribute('aria-pressed', 'false');
+          });
+          bouton.classList.add('creneaux__heure--actif');
+          bouton.setAttribute('aria-pressed', 'true');
+          majEtat();
+          setTimeout(suivant, 250);
+        });
+        grille.appendChild(bouton);
+      });
+      heures.appendChild(grille);
+    }
+
+    var jourChoisi = jours.filter(function (j) { return j.date === jourActif; })[0] || jours[0];
+    afficherHeures(jourChoisi);
+  }
+
+  /* --- Avec qui : on ne pose la question que si plusieurs sont libres. ------ */
+  function construireTravailleurs() {
+    listeTravailleurs.innerHTML = '';
+    if (!creneau) return;
+    var ids = creneau.travailleurs || [];
+
+    if (ids.length <= 1) {
+      aideTravailleur.textContent = 'Une seule personne est disponible sur ce créneau.';
+    } else {
+      aideTravailleur.textContent = 'Plusieurs personnes sont disponibles : choisissez.';
+    }
+
+    ids.forEach(function (id, rang) {
+      var choix = creerChoix('radio', 'travailleur', String(id), nomsTravailleurs[id] || 'Shynera',
+        ids.length > 1 ? '' : 'Ce sera avec ' + (nomsTravailleurs[id] || 'moi'));
+      if (ids.length === 1 || rang === 0) choix.input.checked = true;
+      listeTravailleurs.appendChild(choix.label);
+    });
+  }
+
   function accesRefuse() {
     var e = coche('electricite'), o = coche('eau');
     return (e && e.value === 'non') || (prestationExterieure() && o && o.value === 'non');
+  }
+
+  function champ(nom) { return formulaireR.querySelector('[name="' + nom + '"]'); }
+
+  function coordonneesCompletes() {
+    var email = champ('email').value.trim();
+    return champ('nom').value.trim() !== ''
+      && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      && champ('telephone').value.trim() !== ''
+      && champ('adresse').value.trim() !== '';
   }
 
   function etapeValide(nom) {
@@ -449,6 +617,9 @@ if (formulaire) {
       var e = coche('electricite'), o = coche('eau');
       return !!e && e.value === 'oui' && (!prestationExterieure() || (!!o && o.value === 'oui'));
     }
+    if (nom === 'creneau')     return !!creneau;
+    if (nom === 'travailleur') return !!coche('travailleur');
+    if (nom === 'coordonnees') return coordonneesCompletes();
     return true;
   }
 
@@ -474,8 +645,15 @@ if (formulaire) {
     /* Le total s'affiche a partir de l'etape du choix de la prestation. */
     var t = total();
     var rangPrestation = etapes.map(function (e) { return e.getAttribute('data-etape'); }).indexOf('prestation');
-    var montrerTotal = t !== null && rang >= rangPrestation && nom !== 'recapitulatif';
+    var montrerTotal = t !== null && rang >= rangPrestation && nom !== 'coordonnees' && nom !== 'confirmation';
     totalPied.textContent = montrerTotal ? 'Total : ' + euros(t) : '';
+
+    /* Sur la derniere etape, "Continuer" laisse la place a "Confirmer". */
+    var surCoordonnees = nom === 'coordonnees';
+    btnSuivant.hidden  = surCoordonnees || nom === 'confirmation';
+    btnConfirmer.hidden = !surCoordonnees;
+    btnConfirmer.disabled = !coordonneesCompletes();
+    btnRetour.style.visibility = (rang === 0 || nom === 'confirmation') ? 'hidden' : '';
   }
 
   function ligneRecap(terme, description, montant) {
@@ -498,6 +676,9 @@ if (formulaire) {
     var presta = prestations[p.value];
     var m = montants();
     var commune = verifierCodePostal().commune;
+    if (creneau) ligneRecap('Quand', dateEnFrancais(creneau.date, false) + ' à ' + creneau.heure.replace(/^0/, '').replace(':', ' h '), '');
+    var qui = coche('travailleur');
+    if (qui) ligneRecap('Avec', nomsTravailleurs[qui.value] || 'Shynera', '');
     ligneRecap('Adresse', codePostal() + (commune ? ' · ' + commune : ''), '');
     ligneRecap('Véhicule', v.parentNode.querySelector('strong').textContent, '');
     if (presta.exterieur) ligneRecap('Eau et électricité', 'Disponibles sur place', '');
@@ -521,9 +702,9 @@ if (formulaire) {
     etapes.forEach(function (etape, i) { etape.hidden = i !== rang; });
     compteur.textContent = 'Étape ' + (rang + 1) + ' sur ' + etapes.length;
     barre.style.width = ((rang + 1) / etapes.length * 100) + '%';
-    btnRetour.style.visibility  = rang === 0 ? 'hidden' : '';
-    btnSuivant.style.visibility = rang === etapes.length - 1 ? 'hidden' : '';
-    if (nomEtape() === 'recapitulatif') remplirRecap();
+    if (nomEtape() === 'creneau')      chargerCreneaux();
+    if (nomEtape() === 'travailleur')  construireTravailleurs();
+    if (nomEtape() === 'coordonnees')  remplirRecap();
     majEtat();
     if (deplacerFocus) {
       (nomEtape() === 'code-postal' ? champCP : etapes[rang].querySelector('.etape__titre')).focus();
@@ -543,7 +724,62 @@ if (formulaire) {
     afficher(rang + 1, true);
   }
 
+  /* --- Envoi de la reservation --------------------------------------------- */
+  function confirmer() {
+    if (!coordonneesCompletes() || !creneau) return;
+    var qui = coche('travailleur');
+    btnConfirmer.disabled = true;
+    erreurResa.textContent = 'Enregistrement en cours…';
+
+    fetch('api/reserver.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        prestation:  coche('prestation').value,
+        vehicule:    coche('vehicule').value,
+        supplements: supplementsCoches().map(function (c) { return c.value; }),
+        code_postal: codePostal(),
+        debut:       creneau.date + ' ' + creneau.heure,
+        travailleur: qui ? Number(qui.value) : 0,
+        nom:         champ('nom').value.trim(),
+        email:       champ('email').value.trim(),
+        telephone:   champ('telephone').value.trim(),
+        adresse:     champ('adresse').value.trim(),
+        remarque:    champ('remarque').value.trim(),
+        site_web:    champ('site_web').value
+      })
+    })
+      .then(function (reponse) {
+        return reponse.json().then(function (donnees) { return { statut: reponse.status, donnees: donnees }; });
+      })
+      .then(function (resultat) {
+        if (resultat.donnees && resultat.donnees.ok) {
+          erreurResa.textContent = '';
+          confirmation.textContent = 'Rendez-vous le ' + resultat.donnees.quand
+            + ' avec ' + resultat.donnees.travailleur + ', pour ' + resultat.donnees.total + ' €.';
+          afficher(etapes.length - 1, true);
+          return;
+        }
+        /* Creneau pris entre-temps : on renvoie au choix des creneaux. */
+        erreurResa.textContent = (resultat.donnees && resultat.donnees.message) || "La réservation n'a pas pu être enregistrée.";
+        if (resultat.statut === 409) {
+          creneau = null;
+          creneauxCharges = null;
+          var rangCreneau = etapes.map(function (e) { return e.getAttribute('data-etape'); }).indexOf('creneau');
+          afficher(rangCreneau, true);
+        }
+      })
+      .catch(function () {
+        erreurResa.textContent = "La réservation n'a pas pu être envoyée. Vérifiez votre connexion et réessayez.";
+      })
+      .then(function () { btnConfirmer.disabled = false; });
+  }
+
   btnSuivant.addEventListener('click', suivant);
+  btnConfirmer.addEventListener('click', confirmer);
+  formulaireR.addEventListener('input', function (evenement) {
+    if (evenement.target.closest('[data-etape="coordonnees"]')) majEtat();
+  });
   btnRetour.addEventListener('click', function () { if (rang > 0) afficher(rang - 1, true); });
   /* Touche Entree dans le code postal. */
   formulaireR.addEventListener('submit', function (evenement) { evenement.preventDefault(); suivant(); });
@@ -590,6 +826,9 @@ if (formulaire) {
     }
     majPrixPrestations();
     erreurCP.textContent = '';
+    erreurResa.textContent = '';
+    creneau = null;
+    creneauxCharges = null;
     afficher(0, false);
     fenetre.showModal();
     champCP.focus();
@@ -602,7 +841,9 @@ if (formulaire) {
     ouvrir(bouton.getAttribute('data-prestation'));
   });
 
-  fenetre.querySelector('[data-reservation-fermer]').addEventListener('click', function () { fenetre.close(); });
+  fenetre.querySelectorAll('[data-reservation-fermer]').forEach(function (bouton) {
+    bouton.addEventListener('click', function () { fenetre.close(); });
+  });
   /* Un clic sur le fond grise ferme la fenetre. */
   fenetre.addEventListener('click', function (evenement) {
     if (evenement.target === fenetre) fenetre.close();

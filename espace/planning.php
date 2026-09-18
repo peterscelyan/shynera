@@ -24,6 +24,21 @@ function reglages(): array
     ];
 }
 
+/* Une date en francais : "lundi 21 septembre a 8 h 30". */
+function strftime_fr(DateTimeInterface $date, bool $avecHeure = true): string
+{
+    $jours = ['Sunday' => 'dimanche', 'Monday' => 'lundi', 'Tuesday' => 'mardi', 'Wednesday' => 'mercredi',
+              'Thursday' => 'jeudi', 'Friday' => 'vendredi', 'Saturday' => 'samedi'];
+    $mois  = [1 => 'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+              'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+    $texte = $jours[$date->format('l')] . ' ' . (int) $date->format('j') . ' ' . $mois[(int) $date->format('n')];
+    if ($avecHeure) {
+        $texte .= ' à ' . (int) $date->format('G') . ' h ' . $date->format('i');
+    }
+    return $texte;
+}
+
 /* Les travailleurs qui peuvent recevoir des rendez-vous. */
 function travailleurs_actifs(): array
 {
