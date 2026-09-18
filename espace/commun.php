@@ -31,6 +31,12 @@ function demarrer_session(): void
 function connecte(): ?array
 {
     demarrer_session();
+    /* Une fois par visite : on verifie que la base a bien les dernieres
+       colonnes (voir mettre_a_jour_tables). */
+    if (empty($_SESSION['base_a_jour'])) {
+        mettre_a_jour_tables();
+        $_SESSION['base_a_jour'] = true;
+    }
     if (empty($_SESSION['travailleur_id'])) {
         return null;
     }

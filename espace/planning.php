@@ -24,8 +24,8 @@ function reglages(): array
     ];
 }
 
-/* Une date en francais : "lundi 21 septembre a 8 h 30". */
-function strftime_fr(DateTimeInterface $date, bool $avecHeure = true): string
+/* Une date en francais : "lundi 21 septembre 2026 a 8 h 30". */
+function strftime_fr(DateTimeInterface $date, bool $avecHeure = true, bool $avecAnnee = false): string
 {
     $jours = ['Sunday' => 'dimanche', 'Monday' => 'lundi', 'Tuesday' => 'mardi', 'Wednesday' => 'mercredi',
               'Thursday' => 'jeudi', 'Friday' => 'vendredi', 'Saturday' => 'samedi'];
@@ -33,10 +33,53 @@ function strftime_fr(DateTimeInterface $date, bool $avecHeure = true): string
               'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
     $texte = $jours[$date->format('l')] . ' ' . (int) $date->format('j') . ' ' . $mois[(int) $date->format('n')];
+    if ($avecAnnee) {
+        $texte .= ' ' . $date->format('Y');
+    }
     if ($avecHeure) {
-        $texte .= ' à ' . (int) $date->format('G') . ' h ' . $date->format('i');
+        $texte .= ' à ' . heure_fr($date);
     }
     return $texte;
+}
+
+/* Le mois en toutes lettres : "septembre". */
+function mois_fr(DateTimeInterface $date): string
+{
+    $mois = [1 => 'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+             'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    return $mois[(int) $date->format('n')];
+}
+
+/* "8 h 30", sans zero devant. */
+function heure_fr(DateTimeInterface $date): string
+{
+    return (int) $date->format('G') . ' h ' . $date->format('i');
+}
+
+/* Une duree en minutes : "1 h 30", "45 min". */
+function duree_fr(int $minutes): string
+{
+    if ($minutes < 60) {
+        return $minutes . ' min';
+    }
+    $heures = intdiv($minutes, 60);
+    $reste  = $minutes % 60;
+    return $heures . ' h' . ($reste ? ' ' . str_pad((string) $reste, 2, '0', STR_PAD_LEFT) : '');
+}
+
+/* Le nom de la commune correspondant a un code postal. */
+function commune_du_code(string $codePostal): ?string
+{
+    static $zones = null;
+    if ($zones === null) {
+        $zones = require __DIR__ . '/../zones.php';
+    }
+    foreach ($zones as $commune => $codes) {
+        if (in_array((int) $codePostal, $codes, true)) {
+            return $commune;
+        }
+    }
+    return null;
 }
 
 /* Les travailleurs qui peuvent recevoir des rendez-vous. */
@@ -80,25 +123,38 @@ function reservations_entre(string $du, string $au): array
 }
 
 /* Les plages de travail d'un travailleur pour une journee donnee.
-   Un conge annule la journee entiere ; une journee ajoutee s'ajoute. */
+   REGLE : ce qui est ecrit sur une date precise remplace les horaires
+   habituels de ce jour-la. Sans rien sur la date, ce sont les horaires
+   habituels qui s'appliquent. */
 function plages_du_jour(int $travailleurId, DateTimeImmutable $jour, array $horaires, array $exceptions): array
 {
-    $date = $jour->format('Y-m-d');
-    $duJour = $exceptions[$travailleurId][$date] ?? [];
+    $duJour = $exceptions[$travailleurId][$jour->format('Y-m-d')] ?? [];
 
-    foreach ($duJour as $exception) {
-        if ($exception['genre'] === 'ferme') {
-            return [];
+    if ($duJour) {
+        $plages = [];
+        foreach ($duJour as $exception) {
+            if ($exception['genre'] === 'ferme') {
+                return [];   /* journee entiere retiree */
+            }
+            if ($exception['debut'] && $exception['fin']) {
+                $plages[] = [$exception['debut'], $exception['fin']];
+            }
         }
+        return $plages;
     }
 
-    $plages = $horaires[$travailleurId][(int) $jour->format('N')] ?? [];
-    foreach ($duJour as $exception) {
-        if ($exception['genre'] === 'ouvert' && $exception['debut'] && $exception['fin']) {
-            $plages[] = [$exception['debut'], $exception['fin']];
-        }
-    }
-    return $plages;
+    return $horaires[$travailleurId][(int) $jour->format('N')] ?? [];
+}
+
+/* Les plages d'un travailleur pour une date, telles qu'affichees dans
+   l'espace pro (avec l'origine : habituel ou propre a cette date). */
+function plages_affichees(int $travailleurId, DateTimeImmutable $jour): array
+{
+    $exceptions = exceptions_entre($jour->format('Y-m-d'), $jour->format('Y-m-d'));
+    $duJour = $exceptions[$travailleurId][$jour->format('Y-m-d')] ?? [];
+    $plages = plages_du_jour($travailleurId, $jour, horaires_habituels(), $exceptions);
+
+    return ['plages' => $plages, 'sur_mesure' => (bool) $duJour];
 }
 
 /* Un rendez-vous est possible si, trajet compris, il ne touche aucun autre. */

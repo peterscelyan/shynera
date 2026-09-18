@@ -109,11 +109,29 @@ function tables_sql(): array
     ];
 }
 
+/* Colonnes ajoutees apres coup. On essaie de les creer : si elles existent
+   deja, la base renvoie une erreur qu'on ignore. Cela evite d'avoir a
+   toucher a la base a la main apres une mise a jour du site. */
+function mettre_a_jour_tables(): void
+{
+    $ajouts = [
+        'ALTER TABLE reservations ADD COLUMN paye INT NOT NULL DEFAULT 0',
+    ];
+    foreach ($ajouts as $sql) {
+        try {
+            bdd()->exec($sql);
+        } catch (PDOException $e) {
+            /* colonne deja presente */
+        }
+    }
+}
+
 function creer_tables(): void
 {
     foreach (tables_sql() as $sql) {
         bdd()->exec($sql);
     }
+    mettre_a_jour_tables();
     /* Index : retrouver vite les lignes d'un travailleur. MySQL n'accepte pas
        "IF NOT EXISTS" ici, donc on ignore l'erreur si l'index existe deja. */
     $index = [

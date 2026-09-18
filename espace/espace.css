@@ -54,6 +54,59 @@
   background: var(--papier); border: 1px solid var(--microfibre); border-radius: 2px;
 }
 
+.espace__carte--attention { border-top-color: var(--alerte); }
+.espace__carte--attention .espace__chiffre { color: var(--alerte); }
+
+/* --- Calendrier des disponibilites --------------------------------------- */
+
+.calendrier__barre { display: flex; align-items: center; justify-content: space-between; gap: var(--pas-2); flex-wrap: wrap; margin-bottom: var(--pas-2); }
+.calendrier__periode { margin: 0; font-weight: 600; }
+.bouton--inactif { opacity: .35; pointer-events: none; }
+
+.calendrier { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: var(--microfibre); border: 1px solid var(--microfibre); }
+.calendrier__entete { background: var(--brume); padding: .4rem; text-align: center; font-size: .8rem; font-variation-settings: 'wdth' 85; color: var(--encre-douce); }
+.calendrier__jour {
+  display: flex; flex-direction: column; gap: .15rem; min-height: 5.2rem;
+  padding: .45rem .5rem; background: var(--papier); color: var(--encre);
+  text-decoration: none; font-size: .8rem; line-height: 1.25;
+}
+.calendrier__jour:hover { background: var(--brume); }
+.calendrier__numero { font-weight: 700; font-variation-settings: 'wdth' 110; }
+.calendrier__heures { color: var(--encre-douce); }
+.calendrier__jour--dispo .calendrier__heures { color: var(--eclat-fonce); font-weight: 600; }
+.calendrier__jour--perso { box-shadow: inset 3px 0 0 var(--eclat); }
+.calendrier__jour--passe { opacity: .45; }
+.calendrier__jour--aujourdhui .calendrier__numero { color: var(--eclat-fonce); }
+.calendrier__jour--choisi { outline: 2px solid var(--encre); outline-offset: -2px; background: var(--brume); }
+.calendrier__rdv { margin-top: auto; font-size: .72rem; font-weight: 700; color: var(--papier); background: var(--encre); padding: .1rem .35rem; align-self: flex-start; }
+
+.calendrier__legende { margin-top: var(--pas-2); font-size: .85rem; color: var(--encre-douce); }
+.calendrier__puce { display: inline-block; width: .7rem; height: .7rem; vertical-align: -1px; }
+.calendrier__puce--dispo { background: var(--eclat-fonce); }
+.calendrier__puce--perso { background: var(--eclat); box-shadow: inset 3px 0 0 var(--encre); }
+
+.espace__panneau { border: 1px solid var(--microfibre); border-top: 2px solid var(--encre); padding: var(--pas-3); margin-bottom: var(--pas-4); }
+.espace__etat-jour { margin-bottom: var(--pas-2); }
+.espace__plages--ligne { display: flex; flex-wrap: wrap; gap: var(--pas-2); margin-bottom: var(--pas-2); }
+.espace__plages--ligne li { border: 1px solid var(--microfibre); padding: .2rem .2rem .2rem .7rem; }
+.espace__actions-jour { display: flex; flex-wrap: wrap; gap: var(--pas-2); margin-top: var(--pas-2); }
+.champ--case { align-self: center; }
+.champ--case label { font-weight: 400; font-size: .9rem; }
+
+@media (max-width: 40rem) {
+  .calendrier { grid-template-columns: repeat(7, minmax(4.2rem, 1fr)); overflow-x: auto; }
+  .calendrier__jour { min-height: 4.4rem; font-size: .72rem; }
+}
+
+/* --- Rendez-vous ---------------------------------------------------------- */
+
+.espace__defile { overflow-x: auto; }
+.espace__prix { font-weight: 700; white-space: nowrap; }
+.espace__etat { display: block; font-size: .85rem; font-weight: 600; color: var(--alerte); margin-bottom: .25rem; white-space: nowrap; }
+.espace__etat--ok { color: var(--eclat-fonce); }
+.espace__lien-discret { font: inherit; font-size: .8rem; color: var(--encre-douce); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.espace__remarque td { font-size: .9rem; color: var(--encre-douce); background: var(--brume); }
+
 .espace__tableau { width: 100%; border-collapse: collapse; margin-bottom: var(--pas-3); }
 .espace__tableau th, .espace__tableau td { text-align: left; padding: .7rem .6rem; border-bottom: 1px solid var(--microfibre); vertical-align: top; }
 .espace__tableau th { font-size: .85rem; font-variation-settings: 'wdth' 85; color: var(--encre-douce); }

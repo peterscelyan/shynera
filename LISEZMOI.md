@@ -177,6 +177,27 @@ Première mise en ligne, dans l'ordre :
 6. **Supprime `installation.php` du serveur.**
 7. Connecte-toi sur `shynera.be/espace/` et entre tes horaires.
 
+### Entrer ses disponibilités
+
+Deux façons, au choix, dans « Mes disponibilités » :
+
+- **Le calendrier** (en haut) : tu cliques sur une date et tu dis quand tu es
+  disponible ce jour-là. Une case à cocher permet de répéter le même horaire
+  sur les 3 semaines suivantes. C'est la méthode à utiliser quand les horaires
+  changent tout le temps (étudiant, flexi-job).
+- **Les horaires habituels** (en bas) : les mêmes heures chaque semaine. Ils
+  servent de base pour toutes les dates que tu n'as pas réglées à la main.
+
+Règle simple : **ce qui est réglé sur une date précise remplace les horaires
+habituels de ce jour-là.** Les dates réglées à la main portent un trait vert.
+
+### Le tableau de bord
+
+Chaque rendez-vous affiche la date en toutes lettres, l'heure de début et de
+fin avec la durée, l'adresse complète du client avec un lien vers l'itinéraire,
+et le bouton « Marquer payé ». Les prestations déjà faites mais pas encore
+payées sont regroupées en bas, avec le total qu'il te reste à encaisser.
+
 `config.php` ne doit jamais partir sur GitHub : le dépôt est public. Il est
 déjà exclu par le fichier `.gitignore`.
 
