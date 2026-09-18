@@ -214,6 +214,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $requete = bdd()->prepare('INSERT INTO disponibilites (travailleur_id, jour, debut, fin) VALUES (?, ?, ?, ?)');
                 $requete->execute([$id, $jour, $debut . ':00', $fin . ':00']);
                 message('Horaire habituel ajouté.');
+                /* On garde les memes heures et on passe au jour suivant :
+                   remplir la semaine se fait en cliquant "Ajouter" sept fois. */
+                $_SESSION['habituel_suite'] = [
+                    'jour'  => $jour === 7 ? 1 : $jour + 1,
+                    'debut' => $debut,
+                    'fin'   => $fin,
+                ];
             }
         }
     }
@@ -286,6 +293,9 @@ foreach ($requete->fetchAll() as $plage) {
 
 $heures = heures_possibles();
 $moisCourant = $premierDuMois->format('Y-m');
+
+/* Le formulaire des horaires habituels reprend la ou on s'est arrete. */
+$suite = $_SESSION['habituel_suite'] ?? ['jour' => 1, 'debut' => '08:00', 'fin' => '18:00'];
 
 /* Liste deroulante d'heures, par pas de 30 minutes. */
 function choix_heure(string $nom, string $identifiant, string $valeur, array $heures): void
@@ -377,9 +387,8 @@ entete('Mes disponibilités', $travailleur);
     <p class="espace__aide espace__aide--rdv">
       <?= count($rdvDuJour) ?> rendez-vous ce jour-là :
       <?php foreach ($rdvDuJour as $rang => $r): ?>
-        <?= $rang ? ', ' : '' ?><strong><?= h(heure_fr(new DateTimeImmutable($r['debut']))) ?> – <?= h(heure_fr(new DateTimeImmutable($r['fin']))) ?></strong>
-        (<?= h($r['client_nom']) ?>)
-      <?php endforeach; ?>.
+        <?= $rang ? ', ' : '' ?><strong><?= h(heure_fr(new DateTimeImmutable($r['debut']))) ?> – <?= h(heure_fr(new DateTimeImmutable($r['fin']))) ?></strong> (<?= h($r['client_nom']) ?>)<?= $rang === count($rdvDuJour) - 1 ? '.' : '' ?>
+      <?php endforeach; ?>
       Tu ne peux pas retirer ces heures tant que le rendez-vous est confirmé.
     </p>
   <?php endif; ?>
@@ -467,17 +476,17 @@ entete('Mes disponibilités', $travailleur);
     <label for="jour">Jour</label>
     <select id="jour" name="jour">
       <?php foreach (JOURS() as $numero => $nom): ?>
-        <option value="<?= $numero ?>"><?= h($nom) ?></option>
+        <option value="<?= $numero ?>"<?= $numero === (int) $suite['jour'] ? ' selected' : '' ?>><?= h($nom) ?></option>
       <?php endforeach; ?>
     </select>
   </div>
   <div class="champ">
     <label for="habituel-debut">De</label>
-    <?php choix_heure('debut', 'habituel-debut', '08:00', $heures); ?>
+    <?php choix_heure('debut', 'habituel-debut', (string) $suite['debut'], $heures); ?>
   </div>
   <div class="champ">
     <label for="habituel-fin">À</label>
-    <?php choix_heure('fin', 'habituel-fin', '18:00', $heures); ?>
+    <?php choix_heure('fin', 'habituel-fin', (string) $suite['fin'], $heures); ?>
   </div>
   <div class="formulaire__pied">
     <button type="submit" class="bouton bouton--creux">Ajouter</button>

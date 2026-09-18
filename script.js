@@ -609,12 +609,29 @@ if (formulaire) {
       calendrier.appendChild(grille);
     }
 
+    /* "8 h 00" + 90 minutes = "9 h 30" */
+    function plusTard(heure, minutes) {
+      var parts = heure.split(':');
+      var total = Number(parts[0]) * 60 + Number(parts[1]) + minutes;
+      return (Math.floor(total / 60) % 24) + ' h ' + ('0' + (total % 60)).slice(-2);
+    }
+
     function afficherHeures(jour) {
       heures.innerHTML = '';
+      var p = coche('prestation');
+      var presta = p ? prestations[p.value] : null;
+
       var titre = document.createElement('p');
       titre.className = 'creneaux__titre';
       titre.textContent = dateEnFrancais(jour.date, false);
       heures.appendChild(titre);
+
+      if (presta) {
+        var rappel = document.createElement('p');
+        rappel.className = 'creneaux__duree';
+        rappel.textContent = presta.titre + ' · je reste ' + presta.duree + ' sur place';
+        heures.appendChild(rappel);
+      }
 
       var grille = document.createElement('div');
       grille.className = 'creneaux__grille';
@@ -622,7 +639,14 @@ if (formulaire) {
         var bouton = document.createElement('button');
         bouton.type = 'button';
         bouton.className = 'creneaux__heure';
-        bouton.textContent = c.heure.replace(/^0/, '').replace(':', ' h ');
+        var debut = document.createElement('strong');
+        debut.textContent = c.heure.replace(/^0/, '').replace(':', ' h ');
+        bouton.appendChild(debut);
+        if (presta && presta.minutes) {
+          var fin = document.createElement('small');
+          fin.textContent = 'jusqu’à ' + plusTard(c.heure, presta.minutes);
+          bouton.appendChild(fin);
+        }
         var choisi = creneau && creneau.date === jour.date && creneau.heure === c.heure;
         if (choisi) bouton.classList.add('creneaux__heure--actif');
         bouton.setAttribute('aria-pressed', choisi ? 'true' : 'false');

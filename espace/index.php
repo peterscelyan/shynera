@@ -47,6 +47,12 @@ foreach ($aEncaisser as $r) {
     $aEncaisserTotal += (int) $r['prix'];
 }
 
+/* Temps de travail deja prevu : la somme des rendez-vous a venir. */
+$minutesPrevues = 0;
+foreach ($aVenir as $r) {
+    $minutesPrevues += (int) ((strtotime($r['fin']) - strtotime($r['debut'])) / 60);
+}
+
 /* Affiche une ligne de rendez-vous. */
 function ligne_rendez_vous(array $r): void
 {
@@ -123,9 +129,9 @@ entete('Tableau de bord', $travailleur);
     <p class="espace__chiffre"><?= h((string) $heures) ?> h</p>
     <p>d'horaires habituels par semaine</p>
   </div>
-  <div class="espace__carte<?= $aEncaisser ? ' espace__carte--attention' : '' ?>">
-    <p class="espace__chiffre"><?= $aEncaisserTotal ?> €</p>
-    <p><?= count($aEncaisser) ?> prestation<?= count($aEncaisser) > 1 ? 's' : '' ?> à encaisser</p>
+  <div class="espace__carte">
+    <p class="espace__chiffre"><?= h($minutesPrevues ? duree_fr($minutesPrevues) : '0 h') ?></p>
+    <p>de prestations prévues</p>
   </div>
 </div>
 
@@ -142,7 +148,7 @@ entete('Tableau de bord', $travailleur);
 <?php endif; ?>
 
 <?php if ($aEncaisser): ?>
-  <h2>Prestations faites, pas encore payées</h2>
+  <h2>Prestations faites, pas encore payées <span class="espace__a-encaisser"><?= $aEncaisserTotal ?> € à encaisser</span></h2>
   <div class="espace__defile">
     <table class="espace__tableau">
       <thead><tr><th>Quand</th><th>Prestation</th><th>Client</th><th>Où</th><th>Prix</th><th>Paiement</th></tr></thead>

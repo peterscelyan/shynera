@@ -77,7 +77,13 @@
 .calendrier__jour--perso { box-shadow: inset 3px 0 0 var(--eclat); }
 .calendrier__jour--passe { opacity: .45; }
 .calendrier__jour--hors { background: var(--brume); opacity: .6; }
-.espace__aide--rdv { border-left: 3px solid var(--eclat); padding-left: var(--pas-2); margin-bottom: var(--pas-2); }
+/* Avertissement : ces heures sont bloquees par un rendez-vous. */
+.espace__aide--rdv {
+  border-left: 3px solid var(--alerte); color: var(--alerte);
+  background: color-mix(in srgb, var(--alerte) 7%, var(--papier));
+  padding: var(--pas-2); margin-bottom: var(--pas-2);
+}
+.espace__aide--rdv strong { color: var(--alerte); }
 .calendrier__jour--aujourdhui .calendrier__numero { color: var(--eclat-fonce); }
 .calendrier__jour--choisi { outline: 2px solid var(--encre); outline-offset: -2px; background: var(--brume); }
 .calendrier__rdv { margin-top: auto; font-size: .72rem; font-weight: 700; color: var(--papier); background: var(--encre); padding: .1rem .35rem; align-self: flex-start; }
@@ -104,6 +110,7 @@
 
 .espace__defile { overflow-x: auto; }
 .espace__prix { font-weight: 700; white-space: nowrap; }
+.espace__a-encaisser { font-size: .9rem; font-weight: 600; color: var(--alerte); margin-left: .5rem; }
 .espace__etat { display: block; font-size: .85rem; font-weight: 600; color: var(--alerte); margin-bottom: .25rem; white-space: nowrap; }
 .espace__etat--ok { color: var(--eclat-fonce); }
 .espace__lien-discret { font: inherit; font-size: .8rem; color: var(--encre-douce); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
