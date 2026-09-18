@@ -58,7 +58,7 @@ $zones  = require __DIR__ . '/zones.php';
 <meta property="og:image" content="https://shynera.be/images/exemple-1-apres.webp">
 <meta name="twitter:card" content="summary_large_image">
 
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="<?= version('style.css') ?>">
 
 <!-- Fiche d'entreprise lue par Google. Mets a jour la zone desservie
      et la fourchette de prix si tu changes tes tarifs. -->
@@ -950,7 +950,7 @@ $zones  = require __DIR__ . '/zones.php';
 
 <!-- Les tarifs, passes au script pour la fenetre de reservation. -->
 <script>window.SHYNERA = <?= json_encode(tarifs_pour_navigateur(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;</script>
-<script src="script.js"></script>
+<script src="<?= version('script.js') ?>"></script>
 
 </body>
 </html>

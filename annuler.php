@@ -65,7 +65,7 @@ if ($reservation) {
 <meta name="robots" content="noindex, nofollow">
 <title>Annuler un rendez-vous — Shynera</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="<?= version('style.css') ?>">
 </head>
 <body>
 <main class="section">

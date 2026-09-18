@@ -7,6 +7,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bdd.php';
+require_once __DIR__ . '/prix.php';   /* pour version() : numero de version des fichiers */
 
 /* --- Session -------------------------------------------------------------- */
 
@@ -129,8 +130,8 @@ function entete(string $titre, ?array $travailleur = null): void
 <meta name="robots" content="noindex, nofollow">
 <title><?= h($titre) ?> — Espace Shynera</title>
 <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-<link rel="stylesheet" href="../style.css">
-<link rel="stylesheet" href="espace.css">
+<link rel="stylesheet" href="<?= version('style.css') ?>">
+<link rel="stylesheet" href="<?= version('espace/espace.css') ?>">
 </head>
 <body class="espace">
 <header class="espace__entete">

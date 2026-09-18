@@ -8,6 +8,18 @@
 
 declare(strict_types=1);
 
+/* Ajoute un numero de version a un fichier (style.css, script.js...) :
+   le navigateur recharge le fichier des qu'il change, et garde en memoire
+   tant qu'il ne change pas. Evite d'avoir a vider son cache. */
+function version(string $fichier): string
+{
+    $fichier = ltrim($fichier, '/');
+    $chemin  = __DIR__ . '/../' . $fichier;
+    $date    = is_file($chemin) ? filemtime($chemin) : time();
+    /* Adresse depuis la racine du site : valable aussi depuis /espace/. */
+    return '/' . $fichier . '?v=' . $date;
+}
+
 function tarifs(): array
 {
     static $tarifs = null;
